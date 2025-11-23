@@ -1,5 +1,5 @@
 
-CAFLAGS = --target apple2enh --list-bytes 0
+CAFLAGS = --target apple2 --list-bytes 0
 LDFLAGS = --config apple2-asm.cfg
 
 OUTDIR = out

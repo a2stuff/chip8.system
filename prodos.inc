@@ -15,7 +15,7 @@ DATELO          := $BF90        ; Date lo
 DATEHI          := $BF91        ; Date hi
 TIMELO          := $BF92        ; Time lo
 TIMEHI          := $BF93        ; Time hi
-
+MACHID          := $BF98        ; Machine ID (bit 4,5 = 1,1 if 128k)
 
 ;;; ------------------------------------------------------------
 ;;; MLI Calls
