@@ -282,22 +282,6 @@ _ZP_END_        .byte
         ;; ----------------------------------------
         ;; Set up display
 
-        lda     #COLOR_BG
-        sta     bg_color
-        lda     #COLOR_FG
-        sta     fg_color
-
-        jsr     ExpandColorPatterns
-
-        jsr     ClearBorder
-        jsr     ClearScreen
-
-        sta     LORES
-        sta     MIXCLR
-        sta     TXTCLR
-        sta     SET80VID
-        sta     DHIRESON
-
         ;; IIc: Enable VBL
         lda     ZIDBYTE         ; IIc = $00
         bne     :+
@@ -315,6 +299,21 @@ _ZP_END_        .byte
         lda     #0
         sta     VBL_XOR
 :
+
+        lda     #COLOR_BG
+        sta     bg_color
+        lda     #COLOR_FG
+        sta     fg_color
+        jsr     ExpandColorPatterns
+
+        sta     LORES
+        sta     MIXCLR
+        sta     TXTCLR
+        sta     SET80VID
+        sta     DHIRESON
+
+        jsr     ClearBorder
+        jsr     ClearScreen
 
 ;;; ============================================================
 ;;; Interpreter
@@ -1068,9 +1067,21 @@ ret:    rts
 .endproc
 
 ;;; ============================================================
-;;; Update timers.
+;;; Update timers and `vbl`, generate sound. This is like a faux
+;;; interrupt handler. Must be called regularly e.g. any wait or
+;;; potentially slow loop.
 
+;;; Preserves A,X,Y
 .proc ServiceTimers
+        ;; --------------------------------------------------
+        ;; Preserve registers
+
+        pha
+        txa
+        pha
+        tya
+        pha
+
         ;; --------------------------------------------------
         ;; Use VBL to update timers
 
@@ -1111,9 +1122,30 @@ done_vbl:
         bcc     :+
         sta     SPKR
 :
+        ;; --------------------------------------------------
+        ;; Restore registers
+
+        pla
+        tay
+        pla
+        tax
+        pla
+
         rts
 .endproc
 VBL_XOR := ServiceTimers::vbl_xor
+
+;;; ============================================================
+
+.proc WaitVBL
+:       jsr     ServiceTimers
+        lda     vbl             ; wait to exit VBL
+        bpl     :-
+:       jsr     ServiceTimers   ; wait for next VBL
+        lda     vbl
+        bmi     :-
+        rts
+.endproc
 
 ;;; ============================================================
 ;;; Initialization
@@ -1332,7 +1364,10 @@ cloop:
 ;;; --------------------------------------------------
 
 ;;; Clear CHIP-8 screen to background color
+
 .proc ClearScreen
+        jsr     WaitVBL
+
         sta     SET80STORE
         sta     LOWSCR
 
@@ -1417,13 +1452,7 @@ lores_table_hi:
         sta     collision
 
 .if ::QUIRKS_DISP_VBL
-        ;; Wait for VBL
-:       jsr     ServiceTimers
-        lda     vbl             ; wait to exit VBL
-        bpl     :-
-:       jsr     ServiceTimers   ; wait for next VBL
-        lda     vbl
-        bmi     :-
+        jsr     WaitVBL
 .endif
 
         ;; --------------------------------------------------
