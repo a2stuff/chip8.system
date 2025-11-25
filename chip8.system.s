@@ -253,12 +253,18 @@ keys            .byte 16        ; state of keys 0-F (bit7 = 1 if pressed)
 
 ;;; Graphics
 graph_ptr       .addr           ; pointer for graphics work
-fg_color        .byte
-bg_color        .byte
-fg_bits         .byte
-bg_bits         .byte
+fg_color        .byte           ; currently constant but dynamic in future
+bg_color        .byte           ; "
+fg_bits_main    .byte           ; pre-computed/shifted color bits pattern
+fg_bits_aux     .byte           ; "
+bg_bits_main    .byte           ; "
+bg_bits_aux     .byte           ; "
+
+fg              .byte           ; temp during drawing
+bg              .byte           ; "
 mask1           .byte           ; bits we're setting
 mask2           .byte           ; bits we're keeping
+
 sprite_x        .byte
 sprite_y        .byte
 sprite_rows     .byte
@@ -267,8 +273,8 @@ collision       .byte
 _ZP_END_        .byte
 .endstruct
 
-;;; NOTES: Avoid $40-$4E and $3A-$3F (used by ProDOS)
-.assert _ZP_END_ <= $3A, error, "ZP collision"
+;;; NOTES: Avoid $40-$4E (used by ProDOS)
+.assert _ZP_END_ <= $40, error, "ZP collision"
 
 ;;; NOTE: `pc_ptr` and `addr_ptr` are stored as real memory addresses,
 ;;; not virtual memory addresses.
@@ -280,6 +286,8 @@ _ZP_END_        .byte
         sta     bg_color
         lda     #COLOR_FG
         sta     fg_color
+
+        jsr     ExpandColorPatterns
 
         jsr     ClearBorder
         jsr     ClearScreen
@@ -1328,8 +1336,6 @@ cloop:
         sta     SET80STORE
         sta     LOWSCR
 
-        jsr     ExpandColorPatterns
-
         ldx     #((Y_OFFSET + CHIP8_SCREEN_HEIGHT)/2)-1
 rloop:  lda     lores_table_lo,x
         sta     graph_ptr
@@ -1338,11 +1344,11 @@ rloop:  lda     lores_table_lo,x
 
         ldy     #((X_OFFSET + CHIP8_SCREEN_WIDTH)/2)-1
 cloop:
-        lda     bg_color
+        lda     bg_bits_main
         sta     (graph_ptr),y
 
         sta     HISCR
-        jsr     ROR8            ; DGR is weird, rotate for aux
+        lda     bg_bits_aux
         sta     (graph_ptr),y
         sta     LOWSCR
 
@@ -1381,8 +1387,6 @@ cloop:
         sta     SET80STORE
         sta     LOWSCR
 
-        jsr     ExpandColorPatterns
-
         ;; --------------------------------------------------
         ;; Scale Y coordinate, set up masks and pointer
 
@@ -1412,21 +1416,22 @@ cloop:
         tay                     ; Y = effective column
 
         ;; Which page?
+        lda     bg_bits_main
+        ldx     fg_bits_main
         bcs     :+
         sta     HISCR           ; even, so write to aux memory
-        lda     bg_bits
-        jsr     ROR8            ; DGR is weird, rotate for aux
-        sta     bg_bits
-        lda     fg_bits
-        jsr     ROR8            ; DGR is weird, rotate for aux
-        sta     fg_bits
+        lda     bg_bits_aux
+        ldx     fg_bits_aux
 :
+        sta     bg
+        stx     fg
+
         ;; --------------------------------------------------
         ;; Modify the graphics screen
 
         ;; Check for collision - is current pixel FG or BG?
         lda     (graph_ptr),y
-        eor     bg_bits         ; leaves "our" nibble 0 if bg
+        eor     bg              ; leaves "our" nibble 0 if bg
         and     mask1
         beq     set
 
@@ -1434,12 +1439,12 @@ cloop:
         sec                     ; set flag
         ror     collision
 
-        lda     bg_bits
+        lda     bg
         jmp     modify
 
         ;; set
 set:
-        lda     fg_bits
+        lda     fg
 
 modify:
         ;; A = color bits to emplace
@@ -1479,7 +1484,9 @@ lores_table_hi:
         asl
         asl
         ora     bg_color
-        sta     bg_bits
+        sta     bg_bits_main
+        jsr     ROR8
+        sta     bg_bits_aux
 
         lda     fg_color
         asl
@@ -1487,7 +1494,9 @@ lores_table_hi:
         asl
         asl
         ora     fg_color
-        sta     fg_bits
+        sta     fg_bits_main
+        jsr     ROR8
+        sta     fg_bits_aux
 
         rts
 .endproc
