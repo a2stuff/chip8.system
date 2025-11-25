@@ -1363,36 +1363,134 @@ cloop:
         rts
 .endproc
 
+
+lores_table_lo:
+        .lobytes $400, $480, $500, $580, $600, $680, $700, $780
+        .lobytes $428, $4A8, $528, $5A8, $628, $6A8, $728, $7A8
+        .lobytes $450, $4D0, $550, $5D0, $650, $6D0, $750, $7D0
+lores_table_hi:
+        .hibytes $400, $480, $500, $580, $600, $680, $700, $780
+        .hibytes $428, $4A8, $528, $5A8, $628, $6A8, $728, $7A8
+        .hibytes $450, $4D0, $550, $5D0, $650, $6D0, $750, $7D0
+
 ;;; --------------------------------------------------
 
-;;; Input: X,Y
-.proc TogglePixel
-        cpx     #CHIP8_SCREEN_WIDTH
-        bcs     ret
-        cpy     #CHIP8_SCREEN_HEIGHT
-        bcs     ret
+.proc ExpandColorPatterns
+        lda     bg_color
+        asl
+        asl
+        asl
+        asl
+        ora     bg_color
+        sta     bg_bits_main
+        jsr     ROR8
+        sta     bg_bits_aux
 
-        ;; Center on screen
-        txa
-        clc
-        adc     #X_OFFSET
-        tax
+        lda     fg_color
+        asl
+        asl
+        asl
+        asl
+        ora     fg_color
+        sta     fg_bits_main
+        jsr     ROR8
+        sta     fg_bits_aux
 
-        tya
-        clc
-        adc     #Y_OFFSET
-        tay
+        rts
+.endproc
 
-        ;; Configure banking
+;;; --------------------------------------------------
+
+;;; Inputs: X = x coordinate, Y = y coordinate, A = number of bytes of sprite data (at `addr_ptr`)
+;;; Output: C=1 if any set pixels are changed to unset
+.proc DrawSprite
+        ;; Assert: X,Y wrapped to valid coordinates
+        stx     sprite_x
+        sty     sprite_y
+        sta     sprite_rows
+
+        jsr     SaveAddrPtr
         sta     SET80STORE
-        sta     LOWSCR
+
+        ;; Clear collision flag
+        lda     #0
+        sta     collision
+
+.if ::QUIRKS_DISP_VBL
+        ;; Wait for VBL
+:       jsr     ServiceTimers
+        lda     vbl             ; wait to exit VBL
+        bpl     :-
+:       jsr     ServiceTimers   ; wait for next VBL
+        lda     vbl
+        bmi     :-
+.endif
 
         ;; --------------------------------------------------
-        ;; Scale Y coordinate, set up masks and pointer
+        ;; Loop over rows (bytes in sprite)
+yloop:
+        ;; Set up row invariants
+        lda     sprite_y
+        jsr     _PrepareRow
 
-        tya
-        lsr                     ; /= 2
-        tay                     ; C = top/bottom
+        ;; Grab sprite data for this row
+        ldy     #0
+        lda     (addr_ptr),y
+        beq     nexty           ; empty row
+
+        ldx     sprite_x
+
+        ;; Loop over columns (bits in byte)
+xloop:
+        asl                    ; shift in 0 so we know when we're done
+        bcc     nextx          ; sprite bit is off or we're done, skip
+
+        pha                     ; save remaining bits
+        txa
+        pha                     ; save x coordinate
+
+        jsr     _TogglePixel
+
+        pla                     ; restore X coordinate
+        tax
+        pla                     ; restore remaining bits
+
+nextx:
+        beq     nexty           ; nothing left in row
+        inx
+        cpx     #CHIP8_SCREEN_WIDTH
+        bne     xloop
+
+        ;; next row
+nexty:
+        inc     sprite_y
+
+        ldy     sprite_y
+        cpy     #CHIP8_SCREEN_HEIGHT
+        beq     :+              ; off screen bottom, can early-exit
+
+        jsr     IncAddrPtr
+        dec     sprite_rows
+        bne     yloop
+:
+        jsr     RestoreAddrPtr
+        sta     CLR80STORE
+
+        rol     collision       ; set C if collision
+        rts
+
+;;; --------------------------------------------------
+
+;;; Set up drawing invariants for a single sprite row
+;;; Input: A = Y coordinate
+.proc _PrepareRow
+        ;; Center on screen
+        clc
+        adc     #Y_OFFSET
+
+        ;; Account for 2 pixels per byte
+        lsr                     ; /= 2, C = top/bottom
+        tay                     ; Y = effective row
 
         ;; Masks for top/bottom pixels
         lda     #%00001111
@@ -1408,14 +1506,25 @@ cloop:
         lda     lores_table_hi,y
         sta     graph_ptr+1
 
+        rts
+.endproc
+
+;;; --------------------------------------------------
+
+;;; Input: A = col
+.proc _TogglePixel
+        ;; Center on screen
+        clc
+        adc     #X_OFFSET
+
         ;; --------------------------------------------------
         ;; Scale X coordinate, set up page and colors
 
-        txa
         lsr                     ; /= 2, C = even/odd col
         tay                     ; Y = effective column
 
         ;; Which page?
+        sta     LOWSCR
         lda     bg_bits_main
         ldx     fg_bits_main
         bcs     :+
@@ -1461,112 +1570,10 @@ modify:
 
         ;; restore banking
         sta     LOWSCR
-        sta     CLR80STORE
 
 ret:    rts
 .endproc
 
-lores_table_lo:
-        .lobytes $400, $480, $500, $580, $600, $680, $700, $780
-        .lobytes $428, $4A8, $528, $5A8, $628, $6A8, $728, $7A8
-        .lobytes $450, $4D0, $550, $5D0, $650, $6D0, $750, $7D0
-lores_table_hi:
-        .hibytes $400, $480, $500, $580, $600, $680, $700, $780
-        .hibytes $428, $4A8, $528, $5A8, $628, $6A8, $728, $7A8
-        .hibytes $450, $4D0, $550, $5D0, $650, $6D0, $750, $7D0
-
-;;; --------------------------------------------------
-
-.proc ExpandColorPatterns
-        lda     bg_color
-        asl
-        asl
-        asl
-        asl
-        ora     bg_color
-        sta     bg_bits_main
-        jsr     ROR8
-        sta     bg_bits_aux
-
-        lda     fg_color
-        asl
-        asl
-        asl
-        asl
-        ora     fg_color
-        sta     fg_bits_main
-        jsr     ROR8
-        sta     fg_bits_aux
-
-        rts
-.endproc
-
-;;; --------------------------------------------------
-
-;;; Inputs: X = x coordinate, Y = y coordinate, A = number of bytes of sprite data (at `addr_ptr`)
-;;; Output: C=1 if any set pixels are changed to unset
-.proc DrawSprite
-        stx     sprite_x
-        sty     sprite_y
-        sta     sprite_rows
-
-        jsr     SaveAddrPtr
-
-        ;; Clear collision flag
-        lda     #0
-        sta     collision
-
-.if ::QUIRKS_DISP_VBL
-        ;; Wait for VBL
-:       jsr     ServiceTimers
-        lda     vbl             ; wait to exit VBL
-        bpl     :-
-:       jsr     ServiceTimers   ; wait for next VBL
-        lda     vbl
-        bmi     :-
-.endif
-
-        ;; Loop over rows (bytes in sprite)
-yloop:  ldy     #0
-        lda     (addr_ptr),y
-        ldx     #0              ; x coordinate
-
-        ;; Loop over columns (bits in byte
-xloop:  rol
-        pha                     ; save remaining bits
-        bcc     nextx           ; sprite bit is off, skip
-
-        txa
-        pha                     ; save X
-
-        clc
-        adc     sprite_x
-        tax                     ; pixel X
-        ldy     sprite_y        ; pixel Y
-        jsr     TogglePixel
-
-        pla                     ; restore X
-        tax
-
-nextx:
-        pla                     ; restore remaining bits
-        inx
-        cpx     #8
-        bne     xloop
-
-        ;; next row
-        inc     sprite_y
-        ldy     sprite_y
-        cpy     #CHIP8_SCREEN_HEIGHT
-        bcs     :+              ; off screen bottom, can early-exit
-
-        jsr     IncAddrPtr
-        dec     sprite_rows
-        bne     yloop
-:
-        jsr     RestoreAddrPtr
-        rol     collision       ; set C if collision
-        rts
 .endproc
 
 ;;; ============================================================
