@@ -39,7 +39,7 @@ rm -f "$IMGFILE"
 suppress cadius CREATEVOLUME "$IMGFILE" "$VOLNAME" 800KB --quiet --no-case-bits
 
 PACKDIR=$(mktemp -d)
-trap "rm -rf $PACKDIR" EXIT
+trap "rm -r $PACKDIR" EXIT
 
 add_file () {
   src="$1"
@@ -58,5 +58,6 @@ add_file "res/PRODOS.SYS" "ProDOS#FF0000"
 add_file "out/chip8.system.SYS" "CHIP8.system#FF0000"
 add_file "out/chip8.system.SYS" "BASIS.system#FF0000"
 add_file "res/ibm_logo.ch8" "IBM.LOGO.CH8#060000"
+add_file "res/apple_logo.ch8" "APPLE.LOGO.CH8#060000"
 
 cadius CATALOG "$IMGFILE" | cut -c1-$(tput cols)
