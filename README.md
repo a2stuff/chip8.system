@@ -16,7 +16,7 @@ This version runs on Apple II models that support Double Low Resolution graphics
 * Apple IIc
 * Apple IIc Plus
 * Apple IIgs
-* Macintosh IIe Option Card
+* Macintosh IIe Option Card (_untested, likely has timing and color issues_)
 * Clones such as the Laser 128, Franklin ACE 2200, Franklin ACE 500
 * Emulators such as MAME, Virtual ][, AppleWin, etc.
 

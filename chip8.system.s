@@ -18,6 +18,7 @@
 ;;; * [ ] Allow configurable border/background/foreground colors
 ;;; * [ ] Have key to cycle colors (or whole palettes)
 ;;; * [ ] Consider having bitmap distinct from display
+;;; * [ ] Test on Mac IIe Card - skip ROR8? VBL???
 
 ;;; ============================================================
 
