@@ -12,13 +12,12 @@
 
         .org    $2000
 
-
 ;;; TODO:
 ;;; * [ ] Include a "STARTUP" equivalent default name
 ;;; * [ ] Allow configurable border/background/foreground colors
 ;;; * [ ] Have key to cycle colors (or whole palettes)
 ;;; * [ ] Consider having bitmap distinct from display
-;;; * [ ] Test on Mac IIe Card - skip ROR8? VBL???
+;;; * [ ] Test on Mac IIe Card
 
 ;;; ============================================================
 
@@ -283,7 +282,7 @@ _ZP_END_        .byte
         ;; ----------------------------------------
         ;; Set up display
 
-        ;; IIc: Enable VBL
+        ;; IIc? Enable VBL
         lda     ZIDBYTE         ; IIc = $00
         bne     :+
         lda     #0
@@ -300,7 +299,13 @@ _ZP_END_        .byte
         lda     #0
         sta     VBL_XOR
 :
-
+        ;; Macintosh IIe Option Card? No palette swap
+        lda     BELL1
+        cmp     #$02            ; illegal opcode $02 is signature
+        bne     :+
+        lda     #OPC_RTS
+        sta     ROR8            ; nerf the routine
+:
         lda     #COLOR_BG
         sta     bg_color
         lda     #COLOR_FG
@@ -1319,7 +1324,7 @@ key_table:
 
 ;;; 8-bit ROR, because DGR is annoying
 .proc ROR8
-        pha
+        pha                     ; self-modified to `RTS` on IIe Card
         ror
         pla
         ror
