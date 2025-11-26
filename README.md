@@ -47,9 +47,9 @@ Use these keys on a QWERTY keyboard instead:
 |<kbd>A</kbd>|<kbd>S</kbd>|<kbd>D</kbd>|<kbd>F</kbd>|
 |<kbd>Z</kbd>|<kbd>X</kbd>|<kbd>C</kbd>|<kbd>V</kbd>|
 
-## CHIP-8 Games
+## CHIP-8 Programs
 
-* https://johnearnest.github.io/chip8Archive/
+* https://johnearnest.github.io/chip8Archive/?sort=platform#chip8
 
 Note that only CHIP-8 ("chip8") games are supported, not SUPER-CHIP ("schip") or XO-CHIP ("xochip").
 
