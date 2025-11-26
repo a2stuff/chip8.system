@@ -319,11 +319,9 @@ _ZP_END_        .byte
         sta     DHIRESON
 
         jsr     ClearBorder
-        jsr     ClearScreen
 
 ;;; ============================================================
 ;;; Interpreter
-
 
         ;; Initialize all registers
         lda     #0
@@ -345,6 +343,7 @@ _ZP_END_        .byte
         sta     KBDSTRB
 
         jsr     ClearKeys
+        jsr     ClearScreen     ; calls `WaitVBL`, so ensure timers are reset
 
         ;; fall through to fetch/execute/decode
 
