@@ -67,7 +67,7 @@ done
 
 # Games from https://www.zophar.net/pdroms/chip8/chip-8-games-pack.html
 add_file "res/15PUZZLE.ch8" "GAMES/PUZZLE15.CH8#060000"
-add_file "res/BLINKY.ch8" "GAMES/BLINKY.CH8#060000"
+add_file "res/BLINKY.ch8" "GAMES/BLINKY.CH8#5DC81D"
 add_file "res/BLITZ.ch8" "GAMES/BLITZ.CH8#060000"
 add_file "res/BRIX.ch8" "GAMES/BRIX.CH8#060000"
 add_file "res/CONNECT4.ch8" "GAMES/CONNECT4.CH8#060000"

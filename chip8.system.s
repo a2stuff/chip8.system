@@ -15,39 +15,24 @@
 
 ;;; TODO:
 ;;; * Test on Mac IIe Card
-;;; * Make quirks runtime-configurable
+;;; * Make quirks runtime-configurable (encode into auxtype)
 ;;; * Add ROM checksums / quirks mapping
 
 ;;; ============================================================
 
-;;; Build options for various CHIP-8 ambiguities
-
-;;; Should `8XY1`, `8XY2` and `8XY3` reset `VF`?
-;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#logical-and-arithmetic-instructions
+;;; If file has ProDOS-8 file type $5D "Entertainment" and the
+;;; high byte of the auxtype is $C8 (for "CHIP-8") then the low
+;;; bytes of the auxtype define "quirks" behavior:
+;;;
+;;; Bit 0 = VF Reset                    (default: on)
+;;; Bit 1 = Memory                      (default: on)
+;;; Bit 2 = Display Wait                (default: on)
+;;; Bit 3 = Clipping                    (default: on)
+;;; Bit 4 = Shifting                    (default: off)
+;;;
+;;; Otherwise, all quirks are set to the defaults.
+;;;
 ;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
-QUIRKS_VF_RESET = 1
-
-;;; Should `FX55` and `FX65` increment `I`?
-;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#fx55-and-fx65-store-and-load-memory
-;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
-QUIRKS_MEMORY   = 1
-
-;;; Should sprite drawing be clamped to 60Hz?
-;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
-QUIRKS_DISP_WAIT = 1
-
-;;; Should sprites clip or wrap?
-;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
-QUIRKS_CLIPPING = 1
-
-;;; Should `8XY6` and `8XYE` shift `VY`?
-;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#8xy6-and-8xye-shift
-;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
-QUIRKS_SHIFTING = 1
-
-;;; Should `VF` be set to 1 if `FX1E` causes overflow?
-;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#fx1e-add-to-index
-QUIRKS_OVERFLOW = 1
 
 ;;; ============================================================
 
@@ -150,15 +135,29 @@ CHIP8_SCREEN_HEIGHT = 32
         jmp     start
         .byte   $EE, $EE        ; signature
         .byte   65              ; pathname buffer length ($2005)
-str_path:
+PATHBUF:
         .res    65, 0
 
 ;;; ============================================================
 ;;; ProDOS parameters
 
+.proc get_file_info_params
+param_count:    .byte   $A
+pathname:       .addr   PATHBUF
+access:         .byte   0
+file_type:      .byte   0
+aux_type:       .word   0
+storage_type:   .byte   0
+blocks_used:    .word   0
+mod_date:       .word   0
+mod_time:       .word   0
+create_date:    .word   0
+create_time:    .word   0
+.endproc
+
 .proc open_params
 param_count:    .byte   3
-pathname:       .addr   str_path
+pathname:       .addr   PATHBUF
 io_buffer:      .addr   IO_BUF
 ref_num:        .byte   0
 .endproc
@@ -185,6 +184,37 @@ reserved3:      .word   0
 .endproc
 
 ;;; ============================================================
+;;; Quirks flags
+
+;;; Should `8XY1`, `8XY2` and `8XY3` reset `VF`?
+;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#logical-and-arithmetic-instructions
+;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
+quirks_vf_reset:        .byte   $80
+
+;;; Should `FX55` and `FX65` increment `I`?
+;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#fx55-and-fx65-store-and-load-memory
+;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
+quirks_memory:          .byte   $80
+
+;;; Should sprite drawing be clamped to 60Hz?
+;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
+quirks_disp_wait:       .byte   $80
+
+;;; Should sprites clip or wrap?
+;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
+quirks_clipping:        .byte   $80
+
+;;; Should `8XY6` and `8XYE` shift `VY`?
+;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#8xy6-and-8xye-shift
+;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
+quirks_shifting:        .byte   $00
+
+;;; Should `VF` be set to 1 if `FX1E` causes overflow?
+;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#fx1e-add-to-index
+;;; NOTE: Not runtime configured, but included anyway.
+quirks_overflow:        .byte   $80
+
+;;; ============================================================
 
 start:
         lda     #$95            ; Disable 80-col firmware
@@ -206,7 +236,7 @@ start:
         ;; ----------------------------------------
         ;; Pathname passed?
 
-        lda     str_path
+        lda     PATHBUF
         bne     load_file
 
 quit:
@@ -241,6 +271,32 @@ load_file:
 
         MLI_CALL CLOSE, close_params
         bcs     fail
+
+        ;; --------------------------------------------------
+        ;; Check for filetype signature and set flags
+
+        MLI_CALL GET_FILE_INFO, get_file_info_params
+        bcs     fail
+
+        lda     get_file_info_params::file_type
+        cmp     #$5D            ; $5D = ENT "Entertainment"
+        bne     :+
+        lda     get_file_info_params::aux_type+1
+        cmp     #$C8            ; Chip-8 signature
+        bne     :+
+        lda     get_file_info_params::aux_type
+
+        lsr
+        ror     quirks_vf_reset
+        lsr
+        ror     quirks_memory
+        lsr
+        ror     quirks_disp_wait
+        lsr
+        ror     quirks_clipping
+        lsr
+        ror     quirks_shifting
+:
 
 ;;; ============================================================
 ;;; Zero Page Usage
@@ -620,10 +676,12 @@ dispatch_hi:
         lda     registers,x
         ora     registers,y
         sta     registers,x
-.if ::QUIRKS_VF_RESET
+
+        bit     quirks_vf_reset
+        bpl     :+
         lda     #0
         sta     registers+$F
-.endif
+:
         rts
 .endproc
 
@@ -634,10 +692,12 @@ dispatch_hi:
         lda     registers,x
         and     registers,y
         sta     registers,x
-.if ::QUIRKS_VF_RESET
+
+        bit     quirks_vf_reset
+        bpl     :+
         lda     #0
         sta     registers+$F
-.endif
+:
         rts
 .endproc
 
@@ -648,10 +708,12 @@ dispatch_hi:
         lda     registers,x
         eor     registers,y
         sta     registers,x
-.if ::QUIRKS_VF_RESET
+
+        bit     quirks_vf_reset
+        bpl     :+
         lda     #0
         sta     registers+$F
-.endif
+:
         rts
 .endproc
 
@@ -687,12 +749,14 @@ dispatch_hi:
         ;; `8XY6` - Store the value of register `VY` shifted right one
         ;; bit in register `VX` ; Set register `VF` to the least
         ;; significant bit prior to the shift ; `VY` is unchanged
-.if ::QUIRKS_SHIFTING
         lda     registers,y
-.else
+
+        bit     quirks_shifting
+        bpl     :+
         ;; Original CHIP-8 on COSMAC VIP ignored `VY`.
         lda     registers,x
-.endif
+:
+
         lsr
         sta     registers,x
         jmp     set_vf_to_carry
@@ -726,12 +790,14 @@ Op8xyD := BadInstruction
         ;; `8XYE` - Store the value of register `VY` shifted left one
         ;; bit in register `VX` ; Set register `VF` to the most
         ;; significant bit prior to the shift ; `VY` is unchanged
-.if ::QUIRKS_SHIFTING
+
         lda     registers,y
-.else
+
+        bit     quirks_shifting
+        bpl     :+
         ;; Original CHIP-8 on COSMAC VIP ignored `VY`.
         lda     registers,x
-.endif
+:
         asl
         sta     registers,x
         .assert * = set_vf_to_carry, error, "fall-through"
@@ -935,11 +1001,14 @@ dispatch_hi:
         and     #ADDR_MASK_HI
         ora     #.hibyte(CHIP8_MEMORY)
         sta     addr_ptr+1
-.if ::QUIRKS_OVERFLOW
+
+        bit     quirks_overflow
+        bpl     :+
         rol
         and     #1
         sta     registers+$F
-.endif
+:
+
         rts
 .endproc
 
@@ -1004,9 +1073,10 @@ dispatch_hi:
         ;; inclusive in memory starting at address `I`; `I` is set to
         ;; `I` + `X` + 1 after operation²
 
-.if !::QUIRKS_MEMORY
+        bit     quirks_memory
+        bmi     :+
         jsr     SaveAddrPtr
-.endif
+:
         inx
         stx     limit
         ldx     #0
@@ -1018,9 +1088,11 @@ dispatch_hi:
         limit := *+1
         cpx     #$12            ; self-modified
         bcc     :-
-.if !::QUIRKS_MEMORY
+
+        bit     quirks_memory
+        bmi     :+
         jsr     RestoreAddrPtr
-.endif
+:
         rts
 .endproc
 
@@ -1029,9 +1101,10 @@ dispatch_hi:
         ;; values stored in memory starting at address `I` ; `I` is
         ;; set to `I` + `X` + 1 after operation²
 
-.if !::QUIRKS_MEMORY
+        bit     quirks_memory
+        bmi     :+
         jsr     SaveAddrPtr
-.endif
+:
         inx
         stx     limit
         ldx     #0
@@ -1043,9 +1116,11 @@ dispatch_hi:
         limit := *+1
         cpx     #$12            ; self-modified
         bcc     :-
-.if !::QUIRKS_MEMORY
+
+        bit     quirks_memory
+        bmi     :+
         jsr     RestoreAddrPtr
-.endif
+:
         rts
 .endproc
 
@@ -1616,10 +1691,10 @@ lores_table_hi:
         lda     #0
         sta     collision
 
-.if ::QUIRKS_DISP_WAIT
+        bit     quirks_disp_wait
+        bpl     :+
         jsr     WaitVBL
-.endif
-
+:
         ;; --------------------------------------------------
         ;; Loop over rows (bytes in sprite)
 yloop:
@@ -1652,20 +1727,23 @@ xloop:
 nextx:
         beq     nexty           ; nothing left in row
         inx
-.if ::QUIRKS_CLIPPING
+
+        bit     quirks_clipping
+        bpl     xloop
+
         cpx     #CHIP8_SCREEN_WIDTH
-.endif
         bne     xloop
 
         ;; next row
 nexty:
         inc     sprite_y
 
-.if ::QUIRKS_CLIPPING
+        bit     quirks_clipping
+        bpl     :+
         ldy     sprite_y
         cpy     #CHIP8_SCREEN_HEIGHT
         beq     finish          ; off screen bottom, can early-exit
-.endif
+:
 
         jsr     IncAddrPtr
         dec     sprite_rows
@@ -1683,10 +1761,10 @@ finish:
 ;;; Set up drawing invariants for a single sprite row
 ;;; Input: A = Y coordinate
 .proc _PrepareRow
-.if !::QUIRKS_CLIPPING
+        bit     quirks_clipping
+        bmi     :+
         and     #CHIP8_SCREEN_HEIGHT-1
-.endif
-
+:
         ;; Center on screen
         clc
         adc     #Y_OFFSET
@@ -1716,10 +1794,10 @@ finish:
 
 ;;; Input: A = col
 .proc _TogglePixel
-.if !::QUIRKS_CLIPPING
+        bit     quirks_clipping
+        bmi     :+
         and     #CHIP8_SCREEN_WIDTH-1
-.endif
-
+:
         ;; Center on screen
         clc
         adc     #X_OFFSET

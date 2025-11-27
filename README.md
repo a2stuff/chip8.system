@@ -56,6 +56,20 @@ Use these keys on a QWERTY keyboard instead:
 
 Note that only CHIP-8 ("chip8") games are supported, not SUPER-CHIP ("schip") or XO-CHIP ("xochip").
 
+CHIP-8 programs ("ROMs") can be copied to a ProDOS disk and launched using Bitsy Bye, as long as `CHIP8.SYSTEM` has been placed on the disk and renamed `BASIS.SYSTEM`.
+
+Some programs require different compatibility settings. This can be enabled by changing the ProDOS file type of the program to `$5D` (`ENT` or Entertainment), and setting the aux type to `$C800` (for "CHIP-8") with the lower byte used as "quirks" flags as follows:
+
+* Bit 0 = "VF Reset"                    (default: on)
+* Bit 1 = "Memory"                      (default: on)
+* Bit 2 = "Display Wait"                (default: on)
+* Bit 3 = "Clipping"                    (default: on)
+* Bit 4 = "Shifting"                    (default: off)
+
+Otherwise, all quirks are set to the defaults. This is equivalent to file type `$5D` and aux type `$C80F`.
+
+For detailed "quirks" definitions, see https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
+
 # For Developers
 
 ## Building
