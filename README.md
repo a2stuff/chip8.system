@@ -60,12 +60,20 @@ CHIP-8 programs can be copied to a ProDOS disk and launched using Bitsy Bye, as 
 
 Some CHIP-8 programs require different compatibility settings. This can be enabled by changing the ProDOS file type of the program to `$5D` (`ENT` or Entertainment), and setting the aux type to `$C800` (for "CHIP-8") with the lower byte used as "quirks" flags as follows:
 
-* Bit 0 = "VF Reset"                    (default: on)
-* Bit 1 = "Memory"                      (default: on)
-* Bit 2 = "Display Wait"                (default: on)
-* Bit 3 = "Clipping"                    (default: on)
-* Bit 4 = "Shifting"                    (default: off)
-* Bit 5 = "Jumping"                     (default: off)
+| Bit | Name         | ID                       | Default     |
+|-----|--------------|--------------------------|-------------|
+| 0   | VF Reset     | `logic`                  | on / true   |
+| 1   | Memory       | `memoryLeaveIUnchanged`* | on / false  |
+| 2   | Display Wait | `vblank`                 | on / true   |
+| 3   | Clipping     | `wrap`*                  | on / false  |
+| 4   | Shifting     | `shift`                  | off / false |
+| 5   | Jumping      | `jump`                   | off / false |
+
+Names are per [Timendus's CHIP-8 quirks test](https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#quirks-test). The defaults match the passing expectations in these tests.
+
+IDs are per the [CHIP-8 database](https://github.com/chip-8/chip-8-database/blob/master/database/quirks.json), which lists the same quirks but with slightly different expectations. A * signifies that sense is inverted, i.e. setting the bit is the same as turning this quirk off, per the database definition.
+
+Defaults "on" and "off" reference Timendus' tests, "true" and "false" reference the CHIP-8 database.
 
 Otherwise, all quirks are set to the defaults. This is equivalent to file type `$5D` and aux type `$C80F`.
 
