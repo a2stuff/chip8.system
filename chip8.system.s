@@ -39,6 +39,10 @@ QUIRKS_OVERFLOW = 1
 ;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
 QUIRKS_DISP_VBL = 1
 
+;;; Should sprites clip or wrap?
+;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
+QUIRKS_CLIPPING = 1
+
 ;;; ============================================================
 
 ;;; Equates
@@ -1626,21 +1630,26 @@ xloop:
 nextx:
         beq     nexty           ; nothing left in row
         inx
+.if ::QUIRKS_CLIPPING
         cpx     #CHIP8_SCREEN_WIDTH
+.endif
         bne     xloop
 
         ;; next row
 nexty:
         inc     sprite_y
 
+.if ::QUIRKS_CLIPPING
         ldy     sprite_y
         cpy     #CHIP8_SCREEN_HEIGHT
-        beq     :+              ; off screen bottom, can early-exit
+        beq     finish          ; off screen bottom, can early-exit
+.endif
 
         jsr     IncAddrPtr
         dec     sprite_rows
         bne     yloop
-:
+
+finish:
         jsr     RestoreAddrPtr
         sta     CLR80STORE
 
@@ -1652,6 +1661,10 @@ nexty:
 ;;; Set up drawing invariants for a single sprite row
 ;;; Input: A = Y coordinate
 .proc _PrepareRow
+.if !::QUIRKS_CLIPPING
+        and     #CHIP8_SCREEN_HEIGHT-1
+.endif
+
         ;; Center on screen
         clc
         adc     #Y_OFFSET
@@ -1681,6 +1694,10 @@ nexty:
 
 ;;; Input: A = col
 .proc _TogglePixel
+.if !::QUIRKS_CLIPPING
+        and     #CHIP8_SCREEN_WIDTH-1
+.endif
+
         ;; Center on screen
         clc
         adc     #X_OFFSET
