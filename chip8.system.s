@@ -9,11 +9,14 @@
         .include "apple2.inc"
         .include "opcodes.inc"
         .include "prodos.inc"
+        .include "longbranch.mac"
 
         .org    $2000
 
 ;;; TODO:
 ;;; * Test on Mac IIe Card
+;;; * Make quirks runtime-configurable
+;;; * Add ROM checksums / quirks mapping
 
 ;;; ============================================================
 
@@ -21,23 +24,30 @@
 
 ;;; Should `8XY1`, `8XY2` and `8XY3` reset `VF`?
 ;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#logical-and-arithmetic-instructions
+;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
 QUIRKS_VF_RESET = 1
 
 ;;; Should `FX55` and `FX65` increment `I`?
 ;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#fx55-and-fx65-store-and-load-memory
+;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
 QUIRKS_MEMORY   = 1
-
-;;; Should `VF` be set to 1 if `FX1E` causes overflow?
-;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#fx1e-add-to-index
-QUIRKS_OVERFLOW = 1
 
 ;;; Should sprite drawing be clamped to 60Hz?
 ;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
-QUIRKS_DISP_VBL = 1
+QUIRKS_DISP_WAIT = 1
 
 ;;; Should sprites clip or wrap?
 ;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
 QUIRKS_CLIPPING = 1
+
+;;; Should `8XY6` and `8XYE` shift `VY`?
+;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#8xy6-and-8xye-shift
+;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
+QUIRKS_SHIFTING = 1
+
+;;; Should `VF` be set to 1 if `FX1E` causes overflow?
+;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#fx1e-add-to-index
+QUIRKS_OVERFLOW = 1
 
 ;;; ============================================================
 
@@ -677,7 +687,12 @@ dispatch_hi:
         ;; `8XY6` - Store the value of register `VY` shifted right one
         ;; bit in register `VX` ; Set register `VF` to the least
         ;; significant bit prior to the shift ; `VY` is unchanged
+.if ::QUIRKS_SHIFTING
         lda     registers,y
+.else
+        ;; Original CHIP-8 on COSMAC VIP ignored `VY`.
+        lda     registers,x
+.endif
         lsr
         sta     registers,x
         jmp     set_vf_to_carry
@@ -711,7 +726,12 @@ Op8xyD := BadInstruction
         ;; `8XYE` - Store the value of register `VY` shifted left one
         ;; bit in register `VX` ; Set register `VF` to the most
         ;; significant bit prior to the shift ; `VY` is unchanged
+.if ::QUIRKS_SHIFTING
         lda     registers,y
+.else
+        ;; Original CHIP-8 on COSMAC VIP ignored `VY`.
+        lda     registers,x
+.endif
         asl
         sta     registers,x
         .assert * = set_vf_to_carry, error, "fall-through"
@@ -838,16 +858,45 @@ ret:    rts
 ;;; ============================================================
 
 .proc OpF
-        cmp     #$07
-        bne     :+
+
+        ;; Secondary decode / dispatch
+        txa
+        pha
+        lda     instr
+        ldx     #8              ; size of table
+:       cmp     dispatch_op,x
+        beq     :+
+        dex
+        bpl     :-
+        jmp     BadInstruction
+:
+        lda     dispatch_lo,x
+        sta     dispatch
+        lda     dispatch_hi,x
+        sta     dispatch+1
+        pla
+        tax
+
+        dispatch := *+1
+        jmp     $1234           ; self-modified
+
+dispatch_op:
+        .byte   $07, $0A, $15, $18, $1E, $29, $33, $55, $65
+dispatch_lo:
+        .lobytes OpFX07, OpFX0A, OpFX15, OpFX18, OpFX1E, OpFX29, OpFX33, OpFX55, OpFX65
+dispatch_hi:
+        .hibytes OpFX07, OpFX0A, OpFX15, OpFX18, OpFX1E, OpFX29, OpFX33, OpFX55, OpFX65
+.endproc
+
+.proc OpFX07
         ;; `FX07` - Store the current value of the delay timer in
         ;; register `VX`
         lda     delay_timer
         sta     registers,x
         rts
-:
-        cmp     #$0A
-        bne     :+
+.endproc
+
+.proc OpFX0A
         ;; `FX0A` - Wait for a keypress and store the result in
         ;; register `VX`
         txa
@@ -858,29 +907,6 @@ ret:    rts
         tax
         sty     registers,x
         rts
-:
-        cmp     #$15
-        beq     OpFX15
-
-        cmp     #$18
-        beq     OpFX18
-
-        cmp     #$1E
-        beq     OpFX1E
-
-        cmp     #$29
-        beq     OpFX29
-
-        cmp     #$33
-        beq     OpFX33
-
-        cmp     #$55
-        beq     OpFX55
-
-        cmp     #$65
-        beq     OpFX65
-
-        jmp     BadInstruction
 .endproc
 
 .proc OpFX15
@@ -1590,7 +1616,7 @@ lores_table_hi:
         lda     #0
         sta     collision
 
-.if ::QUIRKS_DISP_VBL
+.if ::QUIRKS_DISP_WAIT
         jsr     WaitVBL
 .endif
 
