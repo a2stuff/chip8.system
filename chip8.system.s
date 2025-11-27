@@ -291,7 +291,7 @@ _ZP_END_        .byte
         ;; IIc? Enable VBL
         lda     ZIDBYTE         ; IIc = $00
         bne     :+
-        lda     #0
+        lda     #0              ; don't invert like we do on the IIe
         sta     VBL_XOR
         sei                     ; we'll just poll
         sta     IOUDISOFF
@@ -302,7 +302,7 @@ _ZP_END_        .byte
         sec
         jsr     IDROUTINE       ; clears carry on IIgs
         bcs     :+
-        lda     #0
+        lda     #0              ; don't invert like we do on the IIe
         sta     VBL_XOR
 :
         ;; Macintosh IIe Option Card? No palette swap
@@ -323,9 +323,6 @@ _ZP_END_        .byte
         sta     TXTCLR
         sta     SET80VID
         sta     DHIRESON
-
-        lda     #COLOR_BORDER
-        jsr     ClearBorder
 
 ;;; ============================================================
 ;;; Interpreter
@@ -348,6 +345,9 @@ _ZP_END_        .byte
         sta     pc_ptr+1
 
         sta     KBDSTRB
+
+        lda     border_color
+        jsr     DrawBorder      ; calls `WaitVBL`, so ensure timers are reset
 
         jsr     ClearKeys
         jsr     ClearScreen     ; calls `WaitVBL`, so ensure timers are reset
@@ -1152,10 +1152,10 @@ VBL_XOR := ServiceTimers::vbl_xor
 .proc WaitVBL
 :       jsr     ServiceTimers
         lda     vbl             ; wait to exit VBL
-        bpl     :-
+        bmi     :-
 :       jsr     ServiceTimers   ; wait for next VBL
         lda     vbl
-        bmi     :-
+        bpl     :-
         rts
 .endproc
 
@@ -1386,16 +1386,10 @@ key_table:
 X_OFFSET = (80 - CHIP8_SCREEN_WIDTH)/2
 Y_OFFSET = (48 - CHIP8_SCREEN_HEIGHT)/2
 
-;;; Not on ZP since this is used infrequently
-border_color:   .byte   COLOR_BORDER
-
-;;; Clear entire DGR screen to border color
+;;; Clear border to passed color
 ;;; A = color
-.proc ClearBorder
-        sta     SET80STORE
-        sta     LOWSCR
-
-        sta     border_color
+.proc DrawBorder
+        sta     border_color    ; for later iteration
         sta     main_bits
         asl
         asl
@@ -1406,33 +1400,103 @@ border_color:   .byte   COLOR_BORDER
         jsr     ROR8
         sta     aux_bits
 
-        ldx     #0              ; rows
-rloop:
-        lda     lores_table_lo,x
-        sta     graph_ptr
-        lda     lores_table_hi,x
-        sta     graph_ptr+1
+        ;; NOTE: This takes longer than 4550 cycles (NTSC VBL) so we
+        ;; carefully draw the border top to bottom to avoid tearing.
 
-        ldy     #39
+        jsr     WaitVBL
+
+        sta     SET80STORE
+
         sta     HISCR
-        aux_bits := *+1
-        lda     #$12            ; self-modified
-:       sta     (graph_ptr),y
-        dey
-        bpl     :-
-
-        ldy     #39             ; cols
+        lda     aux_bits
+        jsr     top
         sta     LOWSCR
-        main_bits := *+1
-        lda     #$34            ; self-modified
-:       sta     (graph_ptr),y
+        lda     main_bits
+        jsr     top
+
+        sta     HISCR
+        lda     aux_bits
+        jsr     sides
+        sta     LOWSCR
+        lda     main_bits
+        jsr     sides
+
+        sta     HISCR
+        lda     aux_bits
+        jsr     bottom
+        sta     LOWSCR
+        lda     main_bits
+        jsr     bottom
+
+        sta     CLR80STORE
+        rts
+
+main_bits:      .byte   0
+aux_bits:       .byte   0
+
+
+top:
+        ldy     #39
+:
+        sta     $400,y
+        sta     $480,y
+        sta     $500,y
+        sta     $580,y
+
         dey
         bpl     :-
 
-        inx
-        cpx     #24
-        bne     rloop
-        sta     CLR80STORE
+sides:
+        ldx     #3
+:
+        sta     $600,x
+        sta     $600+36,x
+        sta     $680,x
+        sta     $680+36,x
+        sta     $700,x
+        sta     $700+36,x
+        sta     $780,x
+        sta     $780+36,x
+        sta     $428,x
+        sta     $428+36,x
+        sta     $4A8,x
+        sta     $4A8+36,x
+        sta     $528,x
+        sta     $528+36,x
+        sta     $5A8,x
+        sta     $5A8+36,x
+        sta     $628,x
+        sta     $628+36,x
+        sta     $6A8,x
+        sta     $6A8+36,x
+        sta     $728,x
+        sta     $728+36,x
+        sta     $7A8,x
+        sta     $7A8+36,x
+        sta     $450,x
+        sta     $450+36,x
+        sta     $4D0,x
+        sta     $4D0+36,x
+        sta     $550,x
+        sta     $550+36,x
+        sta     $5D0,x
+        sta     $5D0+36,x
+
+        dex
+        bpl     :-
+        rts
+
+bottom:
+        ldy     #39
+:
+        sta     $650,y
+        sta     $6D0,y
+        sta     $750,y
+        sta     $7D0,y
+
+        dey
+        bpl     :-
+
         rts
 .endproc
 
@@ -1681,14 +1745,16 @@ ret:    rts
 
 ;;; ============================================================
 
+;;; Not on ZP since this is used infrequently
+border_color:   .byte   COLOR_BORDER
+
 .proc PrevBorder
         lda     border_color
         sec
         sbc     #1
         and     #$F
-        ldx     bg_color
-        ldy     fg_color
-        jmp     SwapPalette
+        sta     border_color
+        jmp     DrawBorder
 .endproc
 
 .proc NextBorder
@@ -1696,12 +1762,13 @@ ret:    rts
         clc
         adc     #1
         and     #$F
-        ldx     bg_color
-        ldy     fg_color
-        jmp     SwapPalette
+        sta     border_color
+        jmp     DrawBorder
 .endproc
 
 .proc PrevBG
+        jsr     ScreenToBitmap
+
         ldx     bg_color
 :       dex
         txa
@@ -1709,13 +1776,16 @@ ret:    rts
         tax
         cpx     fg_color
         beq     :-
+        stx     bg_color
 
-        ldy     fg_color
-        lda     border_color
-        jmp     SwapPalette
+        jsr     ExpandColorPatterns
+        jsr     ClearScreen
+        jmp     BitmapToScreen
 .endproc
 
 .proc NextBG
+        jsr     ScreenToBitmap
+
         ldx     bg_color
 :       inx
         txa
@@ -1723,13 +1793,16 @@ ret:    rts
         tax
         cpx     fg_color
         beq     :-
+        stx     bg_color
 
-        ldy     fg_color
-        lda     border_color
-        jmp     SwapPalette
+        jsr     ExpandColorPatterns
+        jsr     ClearScreen
+        jmp     BitmapToScreen
 .endproc
 
 .proc PrevFG
+        jsr     ScreenToBitmap
+
         ldy     fg_color
 :       dey
         tya
@@ -1737,13 +1810,15 @@ ret:    rts
         tay
         cpy     bg_color
         beq     :-
+        sty     fg_color
 
-        ldx     bg_color
-        lda     border_color
-        jmp     SwapPalette
+        jsr     ExpandColorPatterns
+        jmp     BitmapToScreen
 .endproc
 
 .proc NextFG
+        jsr     ScreenToBitmap
+
         ldy     fg_color
 :       iny
         tya
@@ -1751,24 +1826,14 @@ ret:    rts
         tay
         cpy     bg_color
         beq     :-
+        sty     fg_color
 
-        ldx     bg_color
-        lda     border_color
-        jmp     SwapPalette
+        jsr     ExpandColorPatterns
+        jmp     BitmapToScreen
 .endproc
 
-;;; Input: A = new border color, X = new BG color, Y = new FG color
-.proc SwapPalette
-
-        pha
-        txa
-        pha
-        tya
-        pha
-
-        ;; --------------------------------------------------
-        ;; Extract a bitmap from screen
-.scope
+;;; Populate CHIP8_BITMAP from the DGR screen
+.proc ScreenToBitmap
         sta     SET80STORE
         ldx     #0              ; offset into bitmap
         ldy     #0              ; Y cordinate
@@ -1833,25 +1898,12 @@ xloop:
         cpy     #CHIP8_SCREEN_HEIGHT
         bne     yloop
         sta     CLR80STORE
-.endscope
 
-        ;; --------------------------------------------------
-        ;; Update colors
+        rts
+.endproc
 
-        pla
-        sta     fg_color
-        pla
-        sta     bg_color
-        jsr     ExpandColorPatterns
-
-        pla
-        jsr     ClearBorder
-
-        jsr     ClearScreen
-
-        ;; --------------------------------------------------
-        ;; Apply bitmap to screen
-.scope
+;;; Apply `CHIP8_BITMAP` to the DGR screen
+.proc BitmapToScreen
         sta     SET80STORE
         ldx     #0              ; offset into bitmap
         ldy     #0              ; Y coordinate
@@ -1925,11 +1977,9 @@ nextx:
         cpy     #CHIP8_SCREEN_HEIGHT
         bne     yloop
         sta     CLR80STORE
-.endscope
 
         rts
 .endproc
-
 
 ;;; ============================================================
 ;;; Pseudorandom Number Generation
