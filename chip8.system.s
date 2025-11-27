@@ -255,6 +255,7 @@ addr_copy       .addr           ; temporary copy of `I`
 
 ;;; Keys
 keys            .byte 16        ; state of keys 0-F (bit7 = 1 if pressed)
+akd             .byte           ; do we think any key is down
 
 ;;; Graphics
 graph_ptr       .addr           ; pointer for graphics work
@@ -1215,6 +1216,7 @@ times_5_table:
 
 .proc ClearKeys
         lda     #$00
+        sta     akd
 
         ldx     #$F
 :       sta     keys,x
@@ -1239,7 +1241,11 @@ times_5_table:
         lda     KBD
         bmi     :+
 
-        ;; No new keypress. Clear the keyboard if no key down.
+        ;; No new keypress. Clear the keyboard if released.
+        ;; But don't touch the strobe unless we thought something was
+        ;; down, else we might miss a keypress.
+        bit     akd             ; did we think anything was down?
+        bpl     ret             ; no, we're good
         lda     KBDSTRB         ; i.e. Any Key Down
         bpl     ClearKeys
         rts
@@ -1256,8 +1262,10 @@ times_5_table:
         tax
         lda     #$80
         sta     keys,x
+        sta     akd
 :
-        rts
+
+ret:    rts
 .endproc
 
 ;;; Waits for new key press and its corresponding key release.
