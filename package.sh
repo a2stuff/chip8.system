@@ -62,7 +62,7 @@ add_file "res/apple_logo.ch8" "APPLE.LOGO.CH8#060000"
 
 # Octojam titles from https://johnearnest.github.io/chip8Archive/
 for i in $(seq 1 10); do
-  add_file "res/octojam${i}title.ch8" "DEMOS/OCTOJAM${i}.CH8#060000"
+  add_file "res/octojam${i}title.ch8" "DEMOS/OCTOJAM${i}.CH8#5DC807"
 done
 
 # Games from https://www.zophar.net/pdroms/chip8/chip-8-games-pack.html
