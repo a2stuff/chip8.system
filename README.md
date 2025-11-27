@@ -54,11 +54,11 @@ Use these keys on a QWERTY keyboard instead:
 
 * https://johnearnest.github.io/chip8Archive/?sort=platform#chip8
 
-Note that only CHIP-8 ("chip8") games are supported, not SUPER-CHIP ("schip") or XO-CHIP ("xochip").
+> Note that only CHIP-8 ("chip8") games are supported, not SUPER-CHIP ("schip") or XO-CHIP ("xochip").
 
-CHIP-8 programs ("ROMs") can be copied to a ProDOS disk and launched using Bitsy Bye, as long as `CHIP8.SYSTEM` has been placed on the disk and renamed `BASIS.SYSTEM`.
+CHIP-8 programs can be copied to a ProDOS disk and launched using Bitsy Bye, as long as `CHIP8.SYSTEM` has been placed on the disk and renamed `BASIS.SYSTEM`.
 
-Some programs require different compatibility settings. This can be enabled by changing the ProDOS file type of the program to `$5D` (`ENT` or Entertainment), and setting the aux type to `$C800` (for "CHIP-8") with the lower byte used as "quirks" flags as follows:
+Some CHIP-8 programs require different compatibility settings. This can be enabled by changing the ProDOS file type of the program to `$5D` (`ENT` or Entertainment), and setting the aux type to `$C800` (for "CHIP-8") with the lower byte used as "quirks" flags as follows:
 
 * Bit 0 = "VF Reset"                    (default: on)
 * Bit 1 = "Memory"                      (default: on)
@@ -68,6 +68,8 @@ Some programs require different compatibility settings. This can be enabled by c
 * Bit 5 = "Jumping"                     (default: off)
 
 Otherwise, all quirks are set to the defaults. This is equivalent to file type `$5D` and aux type `$C80F`.
+
+For exmple, the `BLINKY` game (a Pac-Man clone) requires the "Memory" quirk disabled and the "Shifting" quirk enabled, so is packaged with file type `$5D` and aux type `$C81D`.
 
 For detailed "quirks" definitions, see https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
 
