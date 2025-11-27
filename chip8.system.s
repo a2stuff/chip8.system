@@ -15,8 +15,6 @@
 
 ;;; TODO:
 ;;; * Test on Mac IIe Card
-;;; * Make quirks runtime-configurable (encode into auxtype)
-;;; * Add ROM checksums / quirks mapping
 
 ;;; ============================================================
 
