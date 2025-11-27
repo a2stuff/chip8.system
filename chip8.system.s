@@ -68,6 +68,9 @@ SETKBD          := $FE89
 ;;;          :             : :             :
 ;;;          |             | |             |
 ;;;          |             | | (unused)    |
+;;;  $5300   +-------------+ |             |
+;;;          | Bitmap      | |             |
+;;;  $5200   +-------------+ |             |
 ;;;          | CHIP-8      | |             |
 ;;;          | Stack       | |             |
 ;;;  $5000   +-------------+ |             |
@@ -107,6 +110,8 @@ CHIP8_SIZE   := $1000           ; 4K
 
 CHIP8_STACK_LO := $5000         ; low bytes of stack entries
 CHIP8_STACK_HI := $5100         ; high bytes of stack entries
+
+CHIP8_BITMAP   := $5200         ; copy of screen bitmap (1 bit per pixel)
 
 ADDR_MASK_HI    := %00001111    ; mask high address byte to 12 bits
 .assert .lobyte(CHIP8_MEMORY) = 0, error, "code assumes page alignment"
@@ -318,6 +323,7 @@ _ZP_END_        .byte
         sta     SET80VID
         sta     DHIRESON
 
+        lda     #COLOR_BORDER
         jsr     ClearBorder
 
 ;;; ============================================================
@@ -1286,6 +1292,42 @@ times_5_table:
         sta     KBDSTRB
         jmp     quit
 :
+        cmp     #'9'
+        bne     :+
+        jsr     PrevBorder
+        lda     #$FF
+        rts
+:
+        cmp     #'0'
+        bne     :+
+        jsr     NextBorder
+        lda     #$FF
+        rts
+:
+        cmp     #'['
+        bne     :+
+        jsr     PrevBG
+        lda     #$FF
+        rts
+:
+        cmp     #']'
+        bne     :+
+        jsr     NextBG
+        lda     #$FF
+        rts
+:
+        cmp     #','
+        bne     :+
+        jsr     PrevFG
+        lda     #$FF
+        rts
+:
+        cmp     #'.'
+        bne     :+
+        jsr     NextFG
+        lda     #$FF
+        rts
+:
         ;; Convert to uppercase
         cmp     #'a'
         bcc     :+
@@ -1336,32 +1378,52 @@ key_table:
 X_OFFSET = (80 - CHIP8_SCREEN_WIDTH)/2
 Y_OFFSET = (48 - CHIP8_SCREEN_HEIGHT)/2
 
+;;; Not on ZP since this is used infrequently
+border_color:   .byte   COLOR_BORDER
+
 ;;; Clear entire DGR screen to border color
+;;; A = color
 .proc ClearBorder
         sta     SET80STORE
         sta     LOWSCR
 
-        ldx     #(48/2)-1           ; rows
-rloop:  lda     lores_table_lo,x
+        sta     border_color
+        sta     main_bits
+        asl
+        asl
+        asl
+        asl
+        ora     main_bits
+        sta     main_bits
+        jsr     ROR8
+        sta     aux_bits
+
+        ldx     #0              ; rows
+rloop:
+        lda     lores_table_lo,x
         sta     graph_ptr
         lda     lores_table_hi,x
         sta     graph_ptr+1
 
-        ldy     #39             ; cols
-cloop:
-        lda     #COLOR_BORDER | (COLOR_BORDER << 4)
-        sta     (graph_ptr),y
-
+        ldy     #39
         sta     HISCR
-        jsr     ROR8            ; DGR is weird, rotate for aux
-        sta     (graph_ptr),y
-        sta     LOWSCR
-
+        aux_bits := *+1
+        lda     #$12            ; self-modified
+:       sta     (graph_ptr),y
         dey
-        bpl     cloop
+        bpl     :-
 
-        dex
-        bpl     rloop
+        ldy     #39             ; cols
+        sta     LOWSCR
+        main_bits := *+1
+        lda     #$34            ; self-modified
+:       sta     (graph_ptr),y
+        dey
+        bpl     :-
+
+        inx
+        cpx     #24
+        bne     rloop
         sta     CLR80STORE
         rts
 .endproc
@@ -1376,28 +1438,28 @@ cloop:
         sta     SET80STORE
         sta     LOWSCR
 
-        ldx     #((Y_OFFSET + CHIP8_SCREEN_HEIGHT)/2)-1
+        ldx     #Y_OFFSET / 2
 rloop:  lda     lores_table_lo,x
         sta     graph_ptr
         lda     lores_table_hi,x
         sta     graph_ptr+1
 
-        ldy     #((X_OFFSET + CHIP8_SCREEN_WIDTH)/2)-1
+        ldy     #X_OFFSET / 2
 cloop:
-        lda     bg_bits_main
-        sta     (graph_ptr),y
-
         sta     HISCR
         lda     bg_bits_aux
         sta     (graph_ptr),y
-        sta     LOWSCR
 
-        dey
-        cpy     #(X_OFFSET/2)-1
+        sta     LOWSCR
+        lda     bg_bits_main
+        sta     (graph_ptr),y
+
+        iny
+        cpy     #(X_OFFSET + CHIP8_SCREEN_WIDTH)/2
         bne     cloop
 
-        dex
-        cpx     #(Y_OFFSET/2)-1
+        inx
+        cpx     #(Y_OFFSET + CHIP8_SCREEN_HEIGHT)/2
         bne     rloop
         sta     CLR80STORE
         rts
@@ -1592,7 +1654,6 @@ set:
 modify:
         ;; A = color bits to emplace
         pha
-
         lda     (graph_ptr),y   ; make a hole
         and     mask2
         sta     (graph_ptr),y
@@ -1609,6 +1670,258 @@ ret:    rts
 .endproc
 
 .endproc
+
+;;; ============================================================
+
+.proc PrevBorder
+        lda     border_color
+        sec
+        sbc     #1
+        and     #$F
+        ldx     bg_color
+        ldy     fg_color
+        jmp     SwapPalette
+.endproc
+
+.proc NextBorder
+        lda     border_color
+        clc
+        adc     #1
+        and     #$F
+        ldx     bg_color
+        ldy     fg_color
+        jmp     SwapPalette
+.endproc
+
+.proc PrevBG
+        ldx     bg_color
+:       dex
+        txa
+        and     #$F
+        tax
+        cpx     fg_color
+        beq     :-
+
+        ldy     fg_color
+        lda     border_color
+        jmp     SwapPalette
+.endproc
+
+.proc NextBG
+        ldx     bg_color
+:       inx
+        txa
+        and     #$F
+        tax
+        cpx     fg_color
+        beq     :-
+
+        ldy     fg_color
+        lda     border_color
+        jmp     SwapPalette
+.endproc
+
+.proc PrevFG
+        ldy     fg_color
+:       dey
+        tya
+        and     #$F
+        tay
+        cpy     bg_color
+        beq     :-
+
+        ldx     bg_color
+        lda     border_color
+        jmp     SwapPalette
+.endproc
+
+.proc NextFG
+        ldy     fg_color
+:       iny
+        tya
+        and     #$F
+        tay
+        cpy     bg_color
+        beq     :-
+
+        ldx     bg_color
+        lda     border_color
+        jmp     SwapPalette
+.endproc
+
+;;; Input: A = new border color, X = new BG color, Y = new FG color
+.proc SwapPalette
+
+        pha
+        txa
+        pha
+        tya
+        pha
+
+        ;; --------------------------------------------------
+        ;; Extract a bitmap from screen
+.scope
+        sta     SET80STORE
+        ldx     #0              ; offset into bitmap
+        ldy     #0              ; Y cordinate
+yloop:
+        ;; Determine effective Y and masks
+        tya
+        pha
+        clc
+        adc     #Y_OFFSET
+        lsr                     ; C = top (0) or bottom (1)
+        tay                     ; effective Y
+
+        lda     #%00001111
+        bcc     :+
+        lda     #%11110000
+:       sta     mask1
+
+        lda     lores_table_lo,y
+        sta     graph_ptr
+        lda     lores_table_hi,y
+        sta     graph_ptr+1
+
+        ldy     #0              ; X coordinate
+xloop:
+        ;; Determine effective X and page
+        tya
+        pha
+        clc
+        adc     #X_OFFSET
+        lsr                     ; C = aux (0) or main (1)
+        tay                     ; effective X
+
+        bit     HISCR
+        lda     bg_bits_aux
+        bcc     :+
+        bit     LOWSCR
+        lda     bg_bits_main
+:
+        ;; Read out the pixel and shift into bitmap
+        clc
+        eor     (graph_ptr),y
+        and     mask1
+        beq     :+
+        sec
+:       ror     CHIP8_BITMAP,x  ; shift C into bitmap
+
+        ;; Next X
+        pla                     ; X coordinate
+        tay
+        iny
+        tya                     ; done 8 bits?
+        and     #7
+        bne     :+
+        inx                     ; next byte of bitmap
+:       cpy     #CHIP8_SCREEN_WIDTH
+        bne     xloop
+
+        ;; Next Y
+        pla                     ; Y coordinate
+        tay
+        iny
+        cpy     #CHIP8_SCREEN_HEIGHT
+        bne     yloop
+        sta     CLR80STORE
+.endscope
+
+        ;; --------------------------------------------------
+        ;; Update colors
+
+        pla
+        sta     fg_color
+        pla
+        sta     bg_color
+        jsr     ExpandColorPatterns
+
+        pla
+        jsr     ClearBorder
+
+        jsr     ClearScreen
+
+        ;; --------------------------------------------------
+        ;; Apply bitmap to screen
+.scope
+        sta     SET80STORE
+        ldx     #0              ; offset into bitmap
+        ldy     #0              ; Y coordinate
+yloop:
+        ;; Determine effective Y and masks
+        tya
+        pha
+        clc
+        adc     #Y_OFFSET
+        lsr                     ; C = top (0) or bottom (1)
+        tay                     ; effective Y
+
+        lda     #%00001111
+        bcc     :+
+        lda     #%11110000
+:       sta     mask1           ; bits to set
+        eor     #$FF
+        sta     mask2           ; bits to keep
+
+        lda     lores_table_lo,y
+        sta     graph_ptr
+        lda     lores_table_hi,y
+        sta     graph_ptr+1
+
+        ldy     #0              ; X coordinate
+xloop:
+        ;; Determine effective X and page
+        tya
+        pha
+
+        lsr     CHIP8_BITMAP,x  ; shift C out of bitmap
+        bcc     nextx           ; background, no-op
+
+        clc
+        adc     #X_OFFSET
+        lsr                     ; C = aux (0) or main (1)
+        tay                     ; effective X
+
+        bit     HISCR
+        lda     fg_bits_aux
+        bcc     :+
+        bit     LOWSCR
+        lda     fg_bits_main
+:
+        pha
+        lda     (graph_ptr),y   ; make a hole
+        and     mask2
+        sta     (graph_ptr),y
+
+        pla
+        and     mask1           ; fill it
+        ora     (graph_ptr),y
+        sta     (graph_ptr),y
+
+        ;; Next X
+nextx:
+        pla                     ; X coordinate
+        tay
+        iny
+        tya                     ; done 8 bits?
+        and     #7
+        bne     :+
+        inx                     ; next byte of bitmap
+:       cpy     #CHIP8_SCREEN_WIDTH
+        bne     xloop
+
+        ;; Next y
+        pla                     ; Y coordinate
+        tay
+        iny
+        cpy     #CHIP8_SCREEN_HEIGHT
+        bne     yloop
+        sta     CLR80STORE
+.endscope
+
+        rts
+.endproc
+
 
 ;;; ============================================================
 ;;; Pseudorandom Number Generation

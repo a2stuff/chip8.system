@@ -26,7 +26,10 @@ It runs in ProDOS-8 and follows the "interpreter protocol" so that launchers suc
 
 If distributed on a disk with [ProDOS-8 2.4](https://prodos8.com/) and the file is named `BASIS.SYSTEM` then files selected in [Bitsy Bye](https://prodos8.com/bitsy-bye/) will launch with the interpreter automatically.
 
-Press <kbd>Esc</kbd> at any time to return to ProDOS.
+* Press <kbd>Esc</kbd> at any time to return to ProDOS.
+* Press <kbd>9</kbd> and <kbd>0</kbd> to change border colors.
+* Press <kbd>[</kbd> and <kbd>]</kbd> to change background colors.
+* Press <kbd>,</kbd> and <kbd>.</kbd> to change foreground colors.
 
 ## Keypad
 
