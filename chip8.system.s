@@ -29,6 +29,7 @@
 ;;; Bit 2 = Display Wait                (default: on)
 ;;; Bit 3 = Clipping                    (default: on)
 ;;; Bit 4 = Shifting                    (default: off)
+;;; Bit 5 = Jumping                     (default: off)
 ;;;
 ;;; Otherwise, all quirks are set to the defaults.
 ;;;
@@ -209,6 +210,11 @@ quirks_clipping:        .byte   $80
 ;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
 quirks_shifting:        .byte   $00
 
+;;; Should `BNNN` add `V0` or `VX`?
+;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#bnnn-jump-with-offset
+;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
+quirks_jumping:         .byte   $00
+
 ;;; Should `VF` be set to 1 if `FX1E` causes overflow?
 ;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#fx1e-add-to-index
 ;;; NOTE: Not runtime configured, but included anyway.
@@ -296,6 +302,8 @@ load_file:
         ror     quirks_clipping
         lsr
         ror     quirks_shifting
+        lsr
+        ror     quirks_jumping
 :
 
 ;;; ============================================================
@@ -846,10 +854,16 @@ fail:   jmp     BadInstruction
 
 .proc OpB
         ;; `BNNN` - Jump to address `NNN` + `V0`
+
+        bit     quirks_jumping
+        bmi     :+
+        ldx     #0
+:
         clc
-        adc     registers+$0
+        adc     registers,x
         sta     pc_ptr
-        txa
+        lda     instr+1
+        and     #%00001111
         adc     #0
         and     #ADDR_MASK_HI
         ora     #.hibyte(CHIP8_MEMORY)

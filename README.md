@@ -65,6 +65,7 @@ Some programs require different compatibility settings. This can be enabled by c
 * Bit 2 = "Display Wait"                (default: on)
 * Bit 3 = "Clipping"                    (default: on)
 * Bit 4 = "Shifting"                    (default: off)
+* Bit 5 = "Jumping"                     (default: off)
 
 Otherwise, all quirks are set to the defaults. This is equivalent to file type `$5D` and aux type `$C80F`.
 
