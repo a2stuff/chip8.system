@@ -5,7 +5,7 @@
 
 set -e
 
-IMGFILE="out/chip8.2mg"
+IMGFILE="out/chip8.po"
 VOLNAME="CHIP8"
 
 # cecho - "color echo"
@@ -36,7 +36,7 @@ function suppress {
 }
 
 rm -f "$IMGFILE"
-suppress cadius CREATEVOLUME "$IMGFILE" "$VOLNAME" 800KB --quiet --no-case-bits
+suppress cadius CREATEVOLUME "$IMGFILE" "$VOLNAME" 140KB --quiet --no-case-bits
 
 PACKDIR=$(mktemp -d)
 trap "rm -r $PACKDIR" EXIT

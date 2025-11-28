@@ -17,11 +17,18 @@ It runs in ProDOS-8 and follows the "interpreter protocol" so that launchers suc
 
 # For Users
 
+Download the latest floppy disk image and run it in your favorite emulator:
+
+https://github.com/a2stuff/chip8.system/releases/latest/download/chip8.po
+
+Try it right in your browser with [Apple2TS](https://apple2ts.com/?color=color#https://github.com/a2stuff/chip8.system/releases/latest/download/chip8.po) - _some games do not respond to keys in this emulator_.
+
+## CHIP-8 Programs
+
 To run a CHIP-8 program, copy the file to a [ProDOS-8 2.4](https://prodos8.com/) with the `CHIP8.SYSTEM` renamed to (or copied as) `BASIS.SYSTEM`, then boot the disk. [Bitsy Bye](https://prodos8.com/bitsy-bye/) will run. Pick the CHIP-8 file and it will run automatically.
 
 > TIP: [Apple II DeskTop](https://a2desktop.com) will use a copy of `BASIS.SYSTEM` in the same directory to launch unknown file types.
 
-## CHIP-8 Programs
 
 There are many online archives of CHIP-8 programs:
 
@@ -75,7 +82,7 @@ Some CHIP-8 programs require different compatibility settings. This can be enabl
 
 Names are per [Timendus's CHIP-8 quirks test](https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#quirks-test). The defaults match the passing expectations in these tests.
 
-IDs are per the [CHIP-8 database](https://github.com/chip-8/chip-8-database/blob/master/database/quirks.json), which lists the same quirks but with slightly different expectations. A * signifies that sense is inverted, i.e. setting the bit is the same as turning this quirk off, per the database definition.
+IDs are per the [CHIP-8 database](https://github.com/chip-8/chip-8-database/blob/master/database/quirks.json), which lists the same quirks but with slightly different expectations. A * signifies that sense is inverted, i.e. _setting_ the bit is the same as turning _off_ the quirk, per the database definition.
 
 Defaults "on" and "off" reference Timendus' tests, "true" and "false" reference the CHIP-8 database.
 
