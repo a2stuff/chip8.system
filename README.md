@@ -26,6 +26,8 @@ It runs in ProDOS-8 and follows the "interpreter protocol" so that launchers suc
 
 If distributed on a disk with [ProDOS-8 2.4](https://prodos8.com/) and the file is named `BASIS.SYSTEM` then files selected in [Bitsy Bye](https://prodos8.com/bitsy-bye/) will launch with the interpreter automatically.
 
+> TIP: [Apple II DeskTop](https://a2desktop.com) will use a copy of `BASIS.SYSTEM` in the same directory to launch unknown file types.
+
 * Press <kbd>Esc</kbd> at any time to return to ProDOS.
 * Press <kbd>9</kbd> and <kbd>0</kbd> to change border colors.
 * Press <kbd>[</kbd> and <kbd>]</kbd> to change background colors.
@@ -80,6 +82,8 @@ Otherwise, all quirks are set to the defaults. This is equivalent to file type `
 For exmple, the `BLINKY` game (a Pac-Man clone) requires the "Memory" quirk disabled and the "Shifting" quirk enabled, so is packaged with file type `$5D` and aux type `$C81D`.
 
 For detailed "quirks" definitions, see https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
+
+> TIP: You can use [Apple II DeskTop](https://a2desktop.com) to easily change the file type and auxtype; use the **Change Type** accessory in the **Apple** menu.
 
 # For Developers
 
