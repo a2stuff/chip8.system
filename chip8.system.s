@@ -945,7 +945,7 @@ ret:    rts
         txa
         pha
         lda     instr
-        ldx     #8              ; size of table
+        ldx     #NUM_OPS-1
 :       cmp     dispatch_op,x
         beq     :+
         dex
@@ -964,10 +964,13 @@ ret:    rts
 
 dispatch_op:
         .byte   $07, $0A, $15, $18, $1E, $29, $33, $55, $65
+        NUM_OPS = * - dispatch_op
 dispatch_lo:
         .lobytes OpFX07, OpFX0A, OpFX15, OpFX18, OpFX1E, OpFX29, OpFX33, OpFX55, OpFX65
+        .assert * - dispatch_lo = NUM_OPS, error, "table size"
 dispatch_hi:
         .hibytes OpFX07, OpFX0A, OpFX15, OpFX18, OpFX1E, OpFX29, OpFX33, OpFX55, OpFX65
+        .assert * - dispatch_hi = NUM_OPS, error, "table size"
 .endproc
 
 .proc OpFX07
@@ -1411,48 +1414,23 @@ ret:    rts
 .proc TranslateKey
         and     #$7F
 
-        ;; Escape?
-        cmp     #$1B
-        bne     :+
+        ;; Search for command key
+        ldx     #NUM_KEYS-1
+:       cmp     dispatch_key,x
+        beq     :+
+        dex
+        bpl     :-
+        jmp     check_keypad
+:
         sta     KBDSTRB
-        jmp     quit
-:
-        cmp     #'9'
-        bne     :+
-        jsr     PrevBorder
-        lda     #$FF
-        rts
-:
-        cmp     #'0'
-        bne     :+
-        jsr     NextBorder
-        lda     #$FF
-        rts
-:
-        cmp     #'['
-        bne     :+
-        jsr     PrevBG
-        lda     #$FF
-        rts
-:
-        cmp     #']'
-        bne     :+
-        jsr     NextBG
-        lda     #$FF
-        rts
-:
-        cmp     #','
-        bne     :+
-        jsr     PrevFG
-        lda     #$FF
-        rts
-:
-        cmp     #'.'
-        bne     :+
-        jsr     NextFG
-        lda     #$FF
-        rts
-:
+        lda     dispatch_lo,x
+        sta     dispatch
+        lda     dispatch_hi,x
+        sta     dispatch+1
+        dispatch := *+1
+        jmp     $1234           ; self-modified
+
+check_keypad:
         ;; Convert to uppercase
         cmp     #'a'
         bcc     :+
@@ -1471,6 +1449,17 @@ ret:    rts
 found:
         txa
         rts                     ; N=0
+
+
+dispatch_key:
+        .byte   $1B, '9', '0', '[', ']', ',', '.'
+        NUM_KEYS = * - dispatch_key
+dispatch_lo:
+        .lobytes quit, PrevBorder, NextBorder, PrevBG, NextBG, PrevFG, NextFG
+        .assert * - dispatch_lo = NUM_KEYS, error, "table size"
+dispatch_hi:
+        .hibytes quit, PrevBorder, NextBorder, PrevBG, NextBG, PrevFG, NextFG
+        .assert * - dispatch_hi = NUM_KEYS, error, "table size"
 
 key_table:
         ;; COSMAC VIP hex keypad (index) to common QWERTY layout (value):
