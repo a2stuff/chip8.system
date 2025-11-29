@@ -220,7 +220,15 @@ quirks_overflow:        .byte   $80
 
 ;;; ============================================================
 
+;;; For restarting
+saved_stack:    .byte   0
+
+;;; ============================================================
+
 start:
+        tsx
+        stx     saved_stack
+
         lda     #$95            ; Disable 80-col firmware
         jsr     COUT
         jsr     SetTextMode
@@ -237,11 +245,36 @@ start:
         cmp     #%00110000
         bne     quit            ; no, just exit
 
+        ;; IIc? Enable VBL
+        lda     ZIDBYTE         ; IIc = $00
+        bne     :+
+        lda     #0              ; don't invert like we do on the IIe
+        sta     VBL_XOR
+        sei                     ; we'll just poll
+        sta     IOUDISOFF
+        bit     ENVBL
+        bit     PTRIG           ; reset `RDVBL`
+:
+        ;; IIgs? Invert VBL sense
+        sec
+        jsr     IDROUTINE       ; clears carry on IIgs
+        bcs     :+
+        lda     #0              ; don't invert like we do on the IIe
+        sta     VBL_XOR
+:
+        ;; Macintosh IIe Option Card? No palette swap
+        lda     BELL1
+        cmp     #$02            ; illegal opcode $02 is signature
+        bne     :+
+        lda     #OPC_RTS
+        sta     ROR8            ; nerf the routine
+:
+
         ;; ----------------------------------------
         ;; Pathname passed?
 
         lda     PATHBUF
-        bne     load_file
+        bne     get_info
 
 quit:
         ;; Quit back to ProDOS
@@ -256,29 +289,10 @@ fail:
         jsr     BELL1
         jmp     quit
 
-        ;; ----------------------------------------
-        ;; Load the file
-
-load_file:
-        jsr     InitMemory
-        jsr     InitRand
-
-
-        MLI_CALL OPEN, open_params
-        bcs     fail
-        lda     open_params::ref_num
-        sta     read_params::ref_num
-        sta     close_params::ref_num
-
-        MLI_CALL READ, read_params
-        bcs     fail
-
-        MLI_CALL CLOSE, close_params
-        bcs     fail
-
         ;; --------------------------------------------------
         ;; Check for filetype signature and set flags
 
+get_info:
         MLI_CALL GET_FILE_INFO, get_file_info_params
         bcs     fail
 
@@ -303,6 +317,29 @@ load_file:
         lsr
         ror     quirks_jumping
 :
+        ;; ----------------------------------------
+        ;; Load the file
+
+        ;; Also entry point for restarting
+load_file:
+        ldx     saved_stack
+        txs
+
+        jsr     InitMemory
+        jsr     InitRand
+
+        MLI_CALL OPEN, open_params
+        bcs     fail
+        lda     open_params::ref_num
+        sta     read_params::ref_num
+        sta     close_params::ref_num
+
+        MLI_CALL READ, read_params
+        bcs     fail
+
+        MLI_CALL CLOSE, close_params
+        bcs     fail
+
 
 ;;; ============================================================
 ;;; Zero Page Usage
@@ -331,8 +368,6 @@ akd             .byte           ; do we think any key is down
 
 ;;; Graphics
 graph_ptr       .addr           ; pointer for graphics work
-fg_color        .byte           ; currently constant but dynamic in future
-bg_color        .byte           ; "
 fg_bits_main    .byte           ; pre-computed/shifted color bits pattern
 fg_bits_aux     .byte           ; "
 bg_bits_main    .byte           ; "
@@ -357,45 +392,6 @@ _ZP_END_        .byte
 ;;; NOTE: `pc_ptr` and `addr_ptr` are stored as real memory addresses,
 ;;; not virtual memory addresses.
 
-        ;; ----------------------------------------
-        ;; Set up display
-
-        ;; IIc? Enable VBL
-        lda     ZIDBYTE         ; IIc = $00
-        bne     :+
-        lda     #0              ; don't invert like we do on the IIe
-        sta     VBL_XOR
-        sei                     ; we'll just poll
-        sta     IOUDISOFF
-        bit     ENVBL
-        bit     PTRIG           ; reset `RDVBL`
-:
-        ;; IIgs? Invert VBL sense
-        sec
-        jsr     IDROUTINE       ; clears carry on IIgs
-        bcs     :+
-        lda     #0              ; don't invert like we do on the IIe
-        sta     VBL_XOR
-:
-        ;; Macintosh IIe Option Card? No palette swap
-        lda     BELL1
-        cmp     #$02            ; illegal opcode $02 is signature
-        bne     :+
-        lda     #OPC_RTS
-        sta     ROR8            ; nerf the routine
-:
-        lda     #COLOR_BG
-        sta     bg_color
-        lda     #COLOR_FG
-        sta     fg_color
-        jsr     ExpandColorPatterns
-
-        sta     LORES
-        sta     MIXCLR
-        sta     TXTCLR
-        sta     SET80VID
-        sta     DHIRESON
-
 ;;; ============================================================
 ;;; Interpreter
 
@@ -417,6 +413,14 @@ _ZP_END_        .byte
         sta     pc_ptr+1
 
         sta     KBDSTRB
+
+        jsr     ExpandColorPatterns
+
+        sta     LORES
+        sta     MIXCLR
+        sta     TXTCLR
+        sta     SET80VID
+        sta     DHIRESON
 
         lda     border_color
         jsr     DrawBorder      ; calls `WaitVBL`, so ensure timers are reset
@@ -1874,8 +1878,10 @@ ret:    rts
 
 ;;; ============================================================
 
-;;; Not on ZP since this is used infrequently
+;;; Not on ZP since these are not used in tight loops
 border_color:   .byte   COLOR_BORDER
+bg_color:       .byte   COLOR_BG
+fg_color:       .byte   COLOR_FG
 
 .proc PrevBorder
         lda     border_color
