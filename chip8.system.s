@@ -18,23 +18,6 @@
 
 ;;; ============================================================
 
-;;; If file has ProDOS-8 file type $5D "Entertainment" and the
-;;; high byte of the auxtype is $C8 (for "CHIP-8") then the low
-;;; bytes of the auxtype define "quirks" behavior:
-;;;
-;;; Bit 0 = VF Reset                    (default: on)
-;;; Bit 1 = Memory                      (default: on)
-;;; Bit 2 = Display Wait                (default: on)
-;;; Bit 3 = Clipping                    (default: on)
-;;; Bit 4 = Shifting                    (default: off)
-;;; Bit 5 = Jumping                     (default: off)
-;;;
-;;; Otherwise, all quirks are set to the defaults.
-;;;
-;;; https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
-
-;;; ============================================================
-
 ;;; Equates
 SPKR            := $C030
 CLR80VID        := $C00C
@@ -113,15 +96,13 @@ ADDR_MASK_HI    := %00001111    ; mask high address byte to 12 bits
 LOAD_ADDR       := $200
 FONT_ADDR       := $050
 
-;;; ============================================================
-;;; Graphics
+CHIP8_SCREEN_WIDTH  = 64
+CHIP8_SCREEN_HEIGHT = 32
 
+;;; Defaults
 COLOR_BORDER = 2                ; dark blue
 COLOR_BG     = 0                ; black
 COLOR_FG     = 15               ; white
-
-CHIP8_SCREEN_WIDTH  = 64
-CHIP8_SCREEN_HEIGHT = 32
 
 ;;; ============================================================
 ;;; Start of Binary
@@ -184,6 +165,9 @@ reserved3:      .word   0
 
 ;;; ============================================================
 ;;; Quirks flags
+
+;;; See the associated `README.md` for more details.
+
 
 ;;; Should `8XY1`, `8XY2` and `8XY3` reset `VF`?
 ;;; https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#logical-and-arithmetic-instructions
@@ -296,11 +280,13 @@ get_info:
         MLI_CALL GET_FILE_INFO, get_file_info_params
         bcs     fail
 
+        ;; See the associated `README.md` for more details.
+
         lda     get_file_info_params::file_type
-        cmp     #$5D            ; $5D = ENT "Entertainment"
+        cmp     #$5D            ; `$5D` = `ENT` "Entertainment"
         bne     :+
         lda     get_file_info_params::aux_type+1
-        cmp     #$C8            ; Chip-8 signature
+        cmp     #$C8            ; CHIP-8 signature
         bne     :+
         lda     get_file_info_params::aux_type
 
@@ -386,7 +372,7 @@ collision       .byte
 _ZP_END_        .byte
 .endstruct
 
-;;; NOTES: Avoid $40-$4E (used by ProDOS)
+;;; NOTES: Avoid `$40`-`$4E` (used by ProDOS)
 .assert _ZP_END_ <= $40, error, "ZP collision"
 
 ;;; NOTE: `pc_ptr` and `addr_ptr` are stored as real memory addresses,
@@ -475,7 +461,7 @@ InterpreterLoop:
         lda     dispatch_hi,x
         sta     dispatch+1
 
-        ;; Not every instruction is of the form _XY_ but most are so
+        ;; Not every instruction is of the form `_XY_` but most are so
         ;; load nibbles into X and Y
 
         lda     instr
@@ -490,7 +476,7 @@ InterpreterLoop:
         and     #%00001111
         tax                     ; X = X
 
-        ;; And using __NN is common so load low byte into A
+        ;; And using `__NN` is common so load low byte into A
 
         lda     instr           ; commonly needed
 
@@ -517,9 +503,9 @@ dispatch_hi:
 ;;; ============================================================
 
 ;;; All of the following are called with:
-;;; X register = X (assuming _X__)
-;;; Y register = Y (assuming __Y_)
-;;; A register = low byte (i.e. __NN)
+;;; X register = X (assuming `_X__`)
+;;; Y register = Y (assuming `__Y_`)
+;;; A register = low byte (i.e. `__NN`)
 
 ;;; ============================================================
 
@@ -1283,8 +1269,10 @@ VBL_XOR := ServiceTimers::vbl_xor
 ;;; Initialization
 
 .proc InitMemory
-
         ;; Zero CHIP-8 memory
+        lda     #.hibyte(CHIP8_MEMORY)
+        sta     addr+1
+
         lda     #$00
         ldy     #.hibyte(CHIP8_SIZE) ; number of pages
 ploop:  ldx     #$00                 ; clear a whole page
@@ -1452,13 +1440,19 @@ found:
 
 
 dispatch_key:
-        .byte   $1B, '9', '0', '[', ']', ',', '.'
+        .byte   $1B, $7F, \
+        '9', '0', '[', ']', ',', '.', \
+        '!', '@', '#', '$', '%', '^'
         NUM_KEYS = * - dispatch_key
 dispatch_lo:
-        .lobytes quit, PrevBorder, NextBorder, PrevBG, NextBG, PrevFG, NextFG
+        .lobytes quit, Restart, \
+        PrevBorder, NextBorder, PrevBG, NextBG, PrevFG, NextFG, \
+        ToggleQ1, ToggleQ2, ToggleQ3, ToggleQ4, ToggleQ5, ToggleQ6
         .assert * - dispatch_lo = NUM_KEYS, error, "table size"
 dispatch_hi:
-        .hibytes quit, PrevBorder, NextBorder, PrevBG, NextBG, PrevFG, NextFG
+        .hibytes quit, Restart, \
+        PrevBorder, NextBorder, PrevBG, NextBG, PrevFG, NextFG, \
+        ToggleQ1, ToggleQ2, ToggleQ3, ToggleQ4, ToggleQ5, ToggleQ6
         .assert * - dispatch_hi = NUM_KEYS, error, "table size"
 
 key_table:
@@ -1473,6 +1467,27 @@ key_table:
         .byte   'S', 'D', 'Z', 'C'
         .byte   '4', 'R', 'F', 'V'
 .endproc
+
+;;; ============================================================
+;;; Runtime Quirk Configuration
+
+.macro TQ_PROC n, flag
+.proc .ident(.sprintf("ToggleQ%d", n))
+        lda     flag
+        eor     #$80
+        sta     flag
+        jmp     Restart
+.endproc
+.endmacro
+
+TQ_PROC 1, quirks_vf_reset
+TQ_PROC 2, quirks_memory
+TQ_PROC 3, quirks_disp_wait
+TQ_PROC 4, quirks_clipping
+TQ_PROC 5, quirks_shifting
+TQ_PROC 6, quirks_jumping
+
+Restart := load_file
 
 ;;; ============================================================
 ;;; Graphics

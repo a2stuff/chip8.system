@@ -2,16 +2,18 @@
 
 [CHIP-8](https://en.wikipedia.org/wiki/CHIP-8) is a fantasy video game console definition from the 1970s by Joseph Weisbecker.
 
-This version runs on Apple II models that support Double Low Resolution graphics (DGR):
+This is an interpreter for running CHIP-8 programs on Apple II models that support Double Low Resolution graphics (DGR):
 
-* Apple IIe (original)
-* Apple IIe Enhanced
+* Apple IIe* (original), with 80 column card
+* Apple IIe Enhanced*, with 80 column card
 * Apple IIc
 * Apple IIc Plus
 * Apple IIgs
 * Macintosh IIe Option Card (_untested_)
 * Clones such as the Laser 128, Franklin ACE 2200, Franklin ACE 500
 * Emulators such as MAME, Virtual ][, AppleWin, etc.
+
+_* The rare Apple IIe Revision A motherboard does not support double-resolution graphics._
 
 It runs in ProDOS-8 and follows the "interpreter protocol" so that launchers such as [Bitsy Bye](https://prodos8.com/bitsy-bye/) and [Apple II DeskTop](https://a2desktop.com) can automatically launch CHIP-8 programs with it.
 
@@ -25,9 +27,9 @@ https://github.com/a2stuff/chip8.system/releases/latest/download/chip8.po
 
 ## CHIP-8 Programs
 
-To run a CHIP-8 program, copy the file to a [ProDOS-8 2.4](https://prodos8.com/) with the `CHIP8.SYSTEM` renamed to (or copied as) `BASIS.SYSTEM` in the root directory, then boot the disk. [Bitsy Bye](https://prodos8.com/bitsy-bye/) will run and show a list of files and directories. Pick the CHIP-8 file and it will launch automatically.
+To run a CHIP-8 program, copy the file to a [ProDOS-8 2.4](https://prodos8.com/) disk with the `CHIP8.SYSTEM` renamed to (or duplicated as) `BASIS.SYSTEM` in the root directory, then boot the disk. [Bitsy Bye](https://prodos8.com/bitsy-bye/) will run and show a list of files and directories. Pick the CHIP-8 file and it will launch automatically.
 
-> TIP: [Apple II DeskTop](https://a2desktop.com) will use a copy of `BASIS.SYSTEM` in the same directory to launch unknown file types.
+> TIP: [Apple II DeskTop](https://a2desktop.com) will also use a copy of `BASIS.SYSTEM` in the same directory to launch unknown file types.
 
 There are many online archives of CHIP-8 programs:
 
@@ -36,13 +38,15 @@ There are many online archives of CHIP-8 programs:
 * https://github.com/kripod/chip8-roms
 * https://www.zophar.net/pdroms/chip8/chip-8-games-pack.html
 
-> NOTE: Only CHIP-8 games are supported, not SUPER-CHIP or XO-CHIP.
+> NOTE: Only CHIP-8 programs are supported, not SUPER-CHIP or XO-CHIP.
 
 ## Controls
 
 Press <kbd>Esc</kbd> at any time to quit to ProDOS.
 
-The CHIP-8 assumes a 16-key keypad:
+Press <kbd>Del</kbd> at any time to restart the program.
+
+The CHIP-8 assumes a 16-key keypad like the [COSMAC VIP](https://en.wikipedia.org/wiki/COSMAC_VIP):
 | | | | |
 |-|-|-|-|
 |<kbd>1</kbd>|<kbd>2</kbd>|<kbd>3</kbd>|<kbd>C</kbd>|
@@ -59,7 +63,9 @@ Use these keys on a QWERTY keyboard instead:
 |<kbd>A</kbd>|<kbd>S</kbd>|<kbd>D</kbd>|<kbd>F</kbd>|
 |<kbd>Z</kbd>|<kbd>X</kbd>|<kbd>C</kbd>|<kbd>V</kbd>|
 
-> TIP: CHIP-8 programs use a variety of key combinations. Look for documentation where you found the program, or mash the keys to figure out the controls. Have fun!
+For example, the `BLINKY` game (a Pac-Man clone) uses keypad keys <kbd>7</kbd> and <kbd>8</kbd> for left and right, and <kbd>3</kbd> and <kbd>6</kbd> for up and down, so on the Apple II keyboard you would use <kbd>A</kbd> and <kbd>S</kbd> for left and right, and <kbd>3</kbd> and <kbd>E</kbd> for up and down.
+
+> TIP: CHIP-8 programs use a variety of key combinations, often very strange ones. Look for documentation where you found the program, or mash the keys to figure out the controls. Good luck!
 
 
 Other controls:
@@ -70,26 +76,30 @@ Other controls:
 
 ## Compatibility & Quirks
 
-Some CHIP-8 programs require different compatibility settings. This can be enabled by changing the ProDOS file type of the program to `$5D` (`ENT` or Entertainment), and setting the aux type to `$C800` (for "CHIP-8") with the lower byte used as "quirks" flags as follows:
+Some CHIP-8 programs require different compatibility settings, called "quirks".
 
-| Bit | Name         | ID                       | Default     |
-|-----|--------------|--------------------------|-------------|
-| 0   | VF Reset     | `logic`                  | on / true   |
-| 1   | Memory       | `memoryLeaveIUnchanged`* | on / false  |
-| 2   | Display Wait | `vblank`                 | on / true   |
-| 3   | Clipping     | `wrap`*                  | on / false  |
-| 4   | Shifting     | `shift`                  | off / false |
-| 5   | Jumping      | `jump`                   | off / false |
+| Quirk Name   | ID                       | Default     | Key          | Bit |
+|--------------|--------------------------|-------------|--------------|-----|
+| VF Reset     | `logic`                  | on / true   | <kbd>!</kbd> | 0   |
+| Memory       | `memoryLeaveIUnchanged`* | on / false  | <kbd>@</kbd> | 1   |
+| Display Wait | `vblank`                 | on / true   | <kbd>#</kbd> | 2   |
+| Clipping     | `wrap`*                  | on / false  | <kbd>$</kbd> | 3   |
+| Shifting     | `shift`                  | off / false | <kbd>%</kbd> | 4   |
+| Jumping      | `jump`                   | off / false | <kbd>^</kbd> | 5   |
 
-Names are per [Timendus's CHIP-8 quirks test](https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#quirks-test). The defaults match the passing expectations in these tests.
+**Quirk names** are per [Timendus's CHIP-8 quirks test](https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#quirks-test). The defaults for `CHIP8.SYSTEM` match the passing expectations in these tests.
 
-IDs are per the [CHIP-8 database](https://github.com/chip-8/chip-8-database/blob/master/database/quirks.json), which lists the same quirks but with slightly different expectations. A * signifies that sense is inverted, i.e. _setting_ the bit is the same as turning _off_ the quirk, per the database definition.
+**IDs** are per the [CHIP-8 database](https://github.com/chip-8/chip-8-database/blob/master/database/quirks.json), which lists the same quirks but with slightly different expectations. A * signifies that sense is inverted, i.e. turning the quirk *on*, per the test definition, is the same as the *false* setting in the database definition.
 
 Defaults "on" and "off" reference Timendus' tests, "true" and "false" reference the CHIP-8 database.
 
-Otherwise, all quirks are set to the defaults. This is equivalent to file type `$5D` and aux type `$C80F`.
+To toggle a quirk on or off at runtime, press the **Key**. The CHIP-8 program will restart with the new setting.
 
-For exmple, the `BLINKY` game (a Pac-Man clone) requires the "Memory" quirk disabled and the "Shifting" quirk enabled, so is packaged with file type `$5D` and aux type `$C81D`.
+It is possible to persistently configure the quirks for a CHIP-8 program. This is done by changing the ProDOS file type of the program to `$5D` (a.k.a. `ENT` or Entertainment), and setting the aux type to `$C800` (for "CHIP-8") with the lower byte used as "quirks" flags, per the **Bit** column.
+
+For example, the `BLINKY` game (a Pac-Man clone) requires the "Memory" quirk disabled (bit 1) and the "Shifting" quirk enabled (bit 4), so is packaged with file type `$5D` and aux type `$C81D`, since `$1D` is binary `00011101` meaning bit 0 is on, bit 1 is off, bit 2 is on, bit 3 is on, bit 4 is on, and bit 5 is off.
+
+If the file type is not `$5D` or the aux type does not start with `$C8` then programs start with all quirks set to the defaults. This is equivalent to file type `$5D` and aux type `$C80F`, since `$0F` is binary `00001111` meaning bits 0-3 are on and bits 4-5 are off.
 
 For detailed "quirks" definitions, see https://github.com/Timendus/chip8-test-suite?tab=readme-ov-file#the-test
 
