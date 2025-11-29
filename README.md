@@ -17,18 +17,17 @@ It runs in ProDOS-8 and follows the "interpreter protocol" so that launchers suc
 
 # For Users
 
-Download the latest floppy disk image and run it in your favorite emulator:
+💾 The disk image includes several example CHIP-8 programs including demos and games. Download the latest disk image and run it in your favorite emulator:
 
 https://github.com/a2stuff/chip8.system/releases/latest/download/chip8.po
 
-Try it right in your browser with [Apple2TS](https://apple2ts.com/?color=color#https://github.com/a2stuff/chip8.system/releases/latest/download/chip8.po) - _some games do not respond to keys in this emulator_.
+🖥️ Try it right in your browser with [Apple2TS](https://apple2ts.com/?color=color#https://github.com/a2stuff/chip8.system/releases/latest/download/chip8.po) - _some games do not respond to keys in this emulator_ ([bug](https://github.com/ct6502/apple2ts/issues/192)).
 
 ## CHIP-8 Programs
 
-To run a CHIP-8 program, copy the file to a [ProDOS-8 2.4](https://prodos8.com/) with the `CHIP8.SYSTEM` renamed to (or copied as) `BASIS.SYSTEM`, then boot the disk. [Bitsy Bye](https://prodos8.com/bitsy-bye/) will run. Pick the CHIP-8 file and it will run automatically.
+To run a CHIP-8 program, copy the file to a [ProDOS-8 2.4](https://prodos8.com/) with the `CHIP8.SYSTEM` renamed to (or copied as) `BASIS.SYSTEM` in the root directory, then boot the disk. [Bitsy Bye](https://prodos8.com/bitsy-bye/) will run and show a list of files and directories. Pick the CHIP-8 file and it will launch automatically.
 
 > TIP: [Apple II DeskTop](https://a2desktop.com) will use a copy of `BASIS.SYSTEM` in the same directory to launch unknown file types.
-
 
 There are many online archives of CHIP-8 programs:
 
@@ -41,12 +40,7 @@ There are many online archives of CHIP-8 programs:
 
 ## Controls
 
-* Press <kbd>Esc</kbd> at any time to quit to ProDOS.
-* Press <kbd>9</kbd> and <kbd>0</kbd> to change border colors.
-* Press <kbd>[</kbd> and <kbd>]</kbd> to change background colors.
-* Press <kbd>,</kbd> and <kbd>.</kbd> to change foreground colors.
-
-## Keypad
+Press <kbd>Esc</kbd> at any time to quit to ProDOS.
 
 The CHIP-8 assumes a 16-key keypad:
 | | | | |
@@ -67,7 +61,14 @@ Use these keys on a QWERTY keyboard instead:
 
 > TIP: CHIP-8 programs use a variety of key combinations. Look for documentation where you found the program, or mash the keys to figure out the controls. Have fun!
 
-### Compatibility & Quirks
+
+Other controls:
+
+* Press <kbd>9</kbd> and <kbd>0</kbd> to change border colors.
+* Press <kbd>[</kbd> and <kbd>]</kbd> to change background colors.
+* Press <kbd>,</kbd> and <kbd>.</kbd> to change foreground colors.
+
+## Compatibility & Quirks
 
 Some CHIP-8 programs require different compatibility settings. This can be enabled by changing the ProDOS file type of the program to `$5D` (`ENT` or Entertainment), and setting the aux type to `$C800` (for "CHIP-8") with the lower byte used as "quirks" flags as follows:
 
