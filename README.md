@@ -23,7 +23,7 @@ It runs in ProDOS-8 and follows the "interpreter protocol" so that launchers suc
 
 https://github.com/a2stuff/chip8.system/releases/latest/download/chip8.po
 
-🖥️ Try it right in your browser with [Apple2TS](https://apple2ts.com/?color=color#https://github.com/a2stuff/chip8.system/releases/latest/download/chip8.po) - _some games do not respond to keys in this emulator_ ([bug](https://github.com/ct6502/apple2ts/issues/192)).
+🖥️ Try it right in your browser with [Apple2TS](https://apple2ts.com/?color=color#https://github.com/a2stuff/chip8.system/releases/latest/download/chip8.po).
 
 ## CHIP-8 Programs
 
